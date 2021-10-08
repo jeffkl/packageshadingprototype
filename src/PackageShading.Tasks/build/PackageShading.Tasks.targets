@@ -1,0 +1,32 @@
+﻿<Project>
+  <UsingTask TaskName="ShadeAssemblies" AssemblyFile="$(MSBuildThisFileDirectory)net472\PackageShading.Tasks.dll" Condition="'$(MSBuildRuntimeType)' == 'Full'" />
+  <UsingTask TaskName="ShadeAssemblies" AssemblyFile="$(MSBuildThisFileDirectory)netstandard2.1\PackageShading.Tasks.dll" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+
+  <Target Name="ShadeAssemblies"
+          DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn)"
+          AfterTargets="ResolvePackageDependenciesForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    
+    <!-- Run the ShadeAssemblies task -->
+    <ShadeAssemblies References="@(Reference)"
+                     IntermediateOutputPath="$(IntermediateOutputPath)">
+      <Output TaskParameter="ReferencesToUpdate" ItemName="_ReferencesToUpdate" />
+    </ShadeAssemblies>
+
+    <ItemGroup>
+      <!-- Remove "copy local" items that were shaded -->
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.NuGetPackageId)' != ''" />
+      <!-- Add shaded assemblies to "copy local" items -->
+      <ReferenceCopyLocalPaths Include="@(_ReferencesToUpdate)" />
+
+      <!-- Remove Reference items that were shaded -->
+      <Reference Remove="@(Reference)" Condition="'%(Reference.NuGetSourceType)' == 'Package'" />
+
+      <!-- Add shaded assemblies to Reference item -->
+      <Reference Include="@(_ReferencesToUpdate)" />
+
+      <!-- Add shaded assemblies to the package, not sure if the path here is correct -->
+      <TfmSpecificPackageFile Include="@(_ReferencesToUpdate)" Pack="true" PackagePath="runtimes\any\lib\$(TargetFramework)" />
+    </ItemGroup>
+  </Target>
+</Project>

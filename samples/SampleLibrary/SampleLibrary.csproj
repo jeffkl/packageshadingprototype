@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net472;net5.0</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="PackageShading.Tasks" Version="1.0.0" PrivateAssets="All" />
+    <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" PrivateAssets="All" />
+  </ItemGroup>
+</Project>
