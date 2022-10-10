@@ -1,11 +1,16 @@
 ﻿<Project>
-  <UsingTask TaskName="ShadeAssemblies" AssemblyFile="$(MSBuildThisFileDirectory)net472\PackageShading.Tasks.dll" Condition="'$(MSBuildRuntimeType)' == 'Full'" />
-  <UsingTask TaskName="ShadeAssemblies" AssemblyFile="$(MSBuildThisFileDirectory)netstandard2.1\PackageShading.Tasks.dll" Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+  <PropertyGroup>
+    <ShadingTaskAssemblyPath Condition="'$(ShadingTaskAssemblyPath)' == '' And '$(MSBuildRuntimeType)' == 'Full'">$(MSBuildThisFileDirectory)net472\PackageShading.Tasks.dll</ShadingTaskAssemblyPath>
+    <ShadingTaskAssemblyPath Condition="'$(ShadingTaskAssemblyPath)' == '' And '$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)netstandard2.1\PackageShading.Tasks.dll</ShadingTaskAssemblyPath>
+  </PropertyGroup>
+  
+  <UsingTask TaskName="ShadeAssemblies" AssemblyFile="$(ShadingTaskAssemblyPath)" />
+  <UsingTask TaskName="ShadeAssembliesEx" AssemblyFile="$(ShadingTaskAssemblyPath)" />
 
   <Target Name="ShadeAssemblies"
           DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn)"
           AfterTargets="ResolvePackageDependenciesForBuild"
-          Condition="'$(DesignTimeBuild)' != 'true'">
+          Condition="false And '$(DesignTimeBuild)' != 'true' And '$(ShadeAssemblies)' != 'false'">
     
     <!-- Run the ShadeAssemblies task -->
     <ShadeAssemblies References="@(Reference)"
@@ -27,6 +32,34 @@
 
       <!-- Add shaded assemblies to the package, not sure if the path here is correct -->
       <TfmSpecificPackageFile Include="@(_ReferencesToUpdate)" Pack="true" PackagePath="runtimes\any\lib\$(TargetFramework)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ShadeAssembliesEx"
+          DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn)"
+          AfterTargets="ResolvePackageDependenciesForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' And '$(ShadeAssemblies)' != 'false'">
+    <ShadeAssembliesEx PackageReferences="@(PackageReference)"
+                       ProjectAssetsFile="$(ProjectAssetsFile)"
+                       TargetFramework="$(TargetFramework)"
+                       NuGetPackageRoot="$(NuGetPackageRoot)"
+                       IntermediateOutputPath="$(IntermediateOutputPath)"
+                       FallbackTargetFrameworks="$(AssetTargetFallback)"
+                       References="@(Reference)"
+                       Debug="$(DebugShadeAssemblies)">
+      <Output TaskParameter="ShadedAssemblies" ItemName="_ShadedAssemblies" />
+      <Output TaskParameter="ReferencesToRemove" ItemName="_ReferencesToRemove" />
+      <Output TaskParameter="ReferencesToAdd" ItemName="_ReferencesToAdd" />
+    </ShadeAssembliesEx>
+
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(_ReferencesToRemove)" />
+      
+      <ReferenceCopyLocalPaths Include="@(_ReferencesToAdd);@(_ShadedAssemblies)" />
+      
+      <Reference Remove="@(_ReferencesToRemove)" />
+      
+      <Reference Include="@(_ReferencesToAdd)" />
     </ItemGroup>
   </Target>
 </Project>

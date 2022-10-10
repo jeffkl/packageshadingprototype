@@ -56,7 +56,7 @@ namespace PackageShading.Tasks
             List<ITaskItem> referencesToUpdate = new List<ITaskItem>(assembliesToRename.Count);
 
             // Generate a strong name key pair on the fly, we could also use the SNK that the project is
-            StrongNameKeyPair strongNameKeyPair = StrongNameUtility.GetStrongNameKeyPair();
+            System.Reflection.StrongNameKeyPair strongNameKeyPair = StrongNameKeyPair.Create();
 
             // Now loop through each assembly to process, this could probably be done in parallel if needed
             foreach (AssemblyToRename assemblyToRename in assembliesToRename)

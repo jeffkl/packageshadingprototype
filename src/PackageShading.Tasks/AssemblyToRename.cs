@@ -1,4 +1,7 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using Microsoft.Build.Framework;
@@ -9,13 +12,28 @@ namespace PackageShading.Tasks
     /// <summary>
     /// Represents an assembly that will be renamed.
     /// </summary>
+    [DebuggerDisplay("{AssemblyName, nq} => {ShadedAssemblyName,nq} ({ShadedPath,nq}}")]
     internal sealed class AssemblyToRename
     {
         public AssemblyToRename(ITaskItem taskItem)
         {
-            FullPath = taskItem.ItemSpec;
+            if (taskItem != null)
+            {
+                FullPath = taskItem.ItemSpec;
+                AssemblyName = AssemblyName.GetAssemblyName(FullPath);
+                Metadata = taskItem.CloneCustomMetadata();
+            }
+        }
+
+        public AssemblyToRename(string fullPath, ITaskItem taskItem = null)
+            : this(taskItem)
+        {
+            FullPath = fullPath;
             AssemblyName = AssemblyName.GetAssemblyName(FullPath);
-            Metadata = taskItem.CloneCustomMetadata();
+            if (Metadata == null)
+            {
+                Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
         }
 
         public IDictionary Metadata { get; }
@@ -28,9 +46,11 @@ namespace PackageShading.Tasks
 
         public string ShadedPath { get; set; }
 
+        public bool IsReference { get; set; }
+
         public AssemblyDefinition ReadAssembly()
         {
-            using var resolver = new DefaultAssemblyResolver();
+            using DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
 
             resolver.AddSearchDirectory(Path.GetDirectoryName(FullPath));
 
