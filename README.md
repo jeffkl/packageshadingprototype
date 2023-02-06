@@ -15,7 +15,7 @@ This console app depends on a project that is using shading.  The dependencies e
 
 ![image](https://user-images.githubusercontent.com/17556515/136617957-a1cb8860-f89e-4043-a1f4-ff3705a5039a.png)
 
-# Producer Side Shading Prototype
+# Consumer Side Shading Prototype
 
 Consider the below example.  Newtonsoft.Json.Bson 1.0.2 depends on Newtonsoft.Json 12.0.1.  Microsoft.NET.Test.Sdk 17.3.0 depends on Newtonsoft.Json 9.0.0.
 During restore, NuGet will unify the Newonsoft.Json dependency with the highest version, this case 12.0.1.  But what if that version has a breaking change?
