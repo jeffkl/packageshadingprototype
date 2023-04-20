@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <Authors>Microsoft</Authors>
+    <Company>Microsoft</Company>
+    <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
+    <PackageProjectUrl>https://github.com/jeffkl/packageshadingprototype</PackageProjectUrl>
+    <PackageIcon>NuGet-Icon.png</PackageIcon>
+    <PackageIconPath>$(MSBuildThisFileDirectory)branding\$(PackageIcon)</PackageIconPath>
+    <RepositoryUrl>https://github.com/jeffkl/packageshadingprototype.git</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="README.md" />
+    <None Include="$(PackageIconPath)"
+          Pack="true"
+          PackagePath="\"
+          Visible="false" />
+  </ItemGroup>
+</Project>
