@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31805.293
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A29DE6C0-1F4B-4EDE-91EA-0AB71FB2BD6D}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		Directory.Build.props = Directory.Build.props
+		Directory.Build.rsp = Directory.Build.rsp
+		Directory.Build.targets = Directory.Build.targets
+		Directory.Packages.props = Directory.Packages.props
+		LICENSE = LICENSE
+		README.md = README.md
+		version.json = version.json
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PackageShading.Tasks", "src\PackageShading.Tasks\PackageShading.Tasks.csproj", "{3A2100BA-A3CC-49CD-99EF-298E4F2FBA0F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3A2100BA-A3CC-49CD-99EF-298E4F2FBA0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A2100BA-A3CC-49CD-99EF-298E4F2FBA0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A2100BA-A3CC-49CD-99EF-298E4F2FBA0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A2100BA-A3CC-49CD-99EF-298E4F2FBA0F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FD325347-E3ED-4030-AC8B-EDF523A1D6BF}
+	EndGlobalSection
+EndGlobal
