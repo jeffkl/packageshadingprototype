@@ -1,10 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net472;net5.0</TargetFrameworks>
+    <TargetFrameworks>net472;net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="PackageShading.Tasks" Version="1.0.0" PrivateAssets="All" />
-    <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.0" ShadeDependencies="Newtonsoft.Json" />
+    <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" />
+    <PackageReference Include="PackageShading.Tasks" Version="1.0.0-alpha-g54bc4dc353" PrivateAssets="All" />
   </ItemGroup>
 </Project>
