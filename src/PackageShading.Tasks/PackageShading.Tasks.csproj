@@ -13,13 +13,18 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+  <ItemDefinitionGroup>
+    <PackageReference>
+      <PrivateAssets>All</PrivateAssets>
+    </PackageReference>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Bcl.HashCode" />
-    <PackageReference Include="Microsoft.Build.Artifacts" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="Runtime" PrivateAssets="All" />
-    <PackageReference Include="NuGet.Frameworks" PrivateAssets="All" />
-    <PackageReference Include="Mono.Cecil" PrivateAssets="All" />
-    <PackageReference Include="System.Text.Json" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.Build.Artifacts" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="Runtime" />
+    <PackageReference Include="NuGet.Frameworks" />
+    <PackageReference Include="Mono.Cecil" />
+    <PackageReference Include="System.Text.Json" />
   </ItemGroup>
   <ItemGroup>
     <None Include="build\*" Pack="true" PackagePath="build\" CopyToOutputDirectory="PreserveNewest" TargetPath="%(Filename)%(Extension)" />

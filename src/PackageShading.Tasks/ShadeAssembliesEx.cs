@@ -16,6 +16,8 @@ namespace PackageShading.Tasks
     {
         private static readonly char[] SplitChars = new[] { ';', ',' };
 
+        public bool Debug { get; set; }
+
         public string[] FallbackTargetFrameworks { get; set; }
 
         [Required]
@@ -34,18 +36,16 @@ namespace PackageShading.Tasks
         public ITaskItem[] References { get; set; }
 
         [Output]
-        public ITaskItem[] ShadedAssemblies { get; set; }
-
-        [Required]
-        public string TargetFramework { get; set; }
-
-        [Output]
-        public ITaskItem[] ReferencesToAdd{ get; set; }
+        public ITaskItem[] ReferencesToAdd { get; set; }
 
         [Output]
         public ITaskItem[] ReferencesToRemove { get; set; }
 
-        public bool Debug { get; set; }
+        [Output]
+        public ITaskItem[] ShadedAssemblies { get; set; }
+
+        [Required]
+        public string TargetFramework { get; set; }
 
         public override bool Execute()
         {
@@ -97,7 +97,7 @@ namespace PackageShading.Tasks
             ShadedAssemblies = shadedAssemblies.ToArray();
 
             ReferencesToRemove = referencesToRemove.ToArray();
-            
+
             ReferencesToAdd = referencesToAdd.ToArray();
 
             return !Log.HasLoggedErrors;
@@ -405,21 +405,17 @@ namespace PackageShading.Tasks
         }
 
         [DebuggerDisplay("{Id,nq}/{Version,nq}")]
-        internal struct PackageIdentity : IEqualityComparer<PackageIdentity>
+        internal struct PackageIdentity : IEqualityComparer<PackageIdentity>, IEquatable<PackageIdentity>
         {
             public string Id { get; set; }
 
             public string Version { get; set; }
 
-            public bool Equals(PackageIdentity x, PackageIdentity y)
-            {
-                return string.Equals(x.Id, y.Id, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Version, y.Version, StringComparison.OrdinalIgnoreCase);
-            }
+            public bool Equals(PackageIdentity x, PackageIdentity y) => string.Equals(x.Id, y.Id, StringComparison.OrdinalIgnoreCase) && string.Equals(x.Version, y.Version, StringComparison.OrdinalIgnoreCase);
 
-            public int GetHashCode(PackageIdentity obj)
-            {
-                return HashCode.Combine(obj.Id, obj.Version);
-            }
+            public bool Equals(PackageIdentity other) => string.Equals(Id, other.Id, StringComparison.OrdinalIgnoreCase) && string.Equals(Version, other.Version, StringComparison.OrdinalIgnoreCase);
+
+            public int GetHashCode(PackageIdentity obj) => HashCode.Combine(obj.Id, obj.Version);
         }
     }
 }
