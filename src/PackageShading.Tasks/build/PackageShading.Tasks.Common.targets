@@ -1,0 +1,58 @@
+﻿<Project>
+  <Target Name="ShadeAssemblies"
+          DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn)"
+          AfterTargets="ResolvePackageDependenciesForBuild"
+          Condition="false And '$(DesignTimeBuild)' != 'true' And '$(ShadeAssemblies)' != 'false'">
+
+    <!-- Run the ShadeAssemblies task -->
+    <ShadeAssemblies References="@(Reference)"
+                     IntermediateOutputPath="$(IntermediateOutputPath)">
+      <Output TaskParameter="ReferencesToUpdate" ItemName="_ReferencesToUpdate" />
+    </ShadeAssemblies>
+
+    <ItemGroup>
+      <!-- Remove "copy local" items that were shaded -->
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.NuGetPackageId)' != ''" />
+      <!-- Add shaded assemblies to "copy local" items -->
+      <ReferenceCopyLocalPaths Include="@(_ReferencesToUpdate)" />
+
+      <!-- Remove Reference items that were shaded -->
+      <Reference Remove="@(Reference)" Condition="'%(Reference.NuGetSourceType)' == 'Package'" />
+
+      <!-- Add shaded assemblies to Reference item -->
+      <Reference Include="@(_ReferencesToUpdate)" />
+
+      <!-- Add shaded assemblies to the package, not sure if the path here is correct -->
+      <TfmSpecificPackageFile Include="@(_ReferencesToUpdate)" Pack="true" PackagePath="runtimes\any\lib\$(TargetFramework)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ShadeAssembliesEx"
+          DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn)"
+          AfterTargets="ResolvePackageDependenciesForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' And '$(ShadeAssemblies)' != 'false'">
+    <ShadeAssembliesEx PackageReferences="@(PackageReference)"
+                       ProjectAssetsFile="$(ProjectAssetsFile)"
+                       TargetFramework="$(TargetFramework)"
+                       TargetFrameworkMoniker="$(TargetFrameworkMoniker)"
+                       NuGetPackageRoot="$(NuGetPackageRoot)"
+                       IntermediateOutputPath="$(IntermediateOutputPath)"
+                       FallbackTargetFrameworks="$(AssetTargetFallback)"
+                       References="@(Reference)"
+                       Debug="$(DebugShadeAssemblies)">
+      <Output TaskParameter="ShadedAssemblies" ItemName="_ShadedAssemblies" />
+      <Output TaskParameter="ReferencesToRemove" ItemName="_ReferencesToRemove" />
+      <Output TaskParameter="ReferencesToAdd" ItemName="_ReferencesToAdd" />
+    </ShadeAssembliesEx>
+
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(_ReferencesToRemove)" />
+
+      <ReferenceCopyLocalPaths Include="@(_ReferencesToAdd);@(_ShadedAssemblies)" />
+
+      <Reference Remove="@(_ReferencesToRemove)" />
+
+      <Reference Include="@(_ReferencesToAdd)" />
+    </ItemGroup>
+  </Target>
+</Project>
