@@ -6,6 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.0" ShadeDependencies="Newtonsoft.Json" />
     <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" />
-    <PackageReference Include="PackageShading.Tasks" Version="1.0.0-alpha-g54bc4dc353" PrivateAssets="All" />
+    <PackageReference Include="PackageShading.Tasks" Version="1.0.1-preview-g8e8bc81c6d" PrivateAssets="All" />
   </ItemGroup>
 </Project>

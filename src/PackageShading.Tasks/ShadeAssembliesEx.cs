@@ -47,6 +47,9 @@ namespace PackageShading.Tasks
         [Required]
         public string TargetFramework { get; set; }
 
+        [Required]
+        public string TargetFrameworkMoniker { get; set; }
+
         public override bool Execute()
         {
             if (Debug)
@@ -133,11 +136,11 @@ namespace PackageShading.Tasks
                 {
                     foreach (string shadeDependency in shadeDependencies.Split(SplitChars, StringSplitOptions.RemoveEmptyEntries))
                     {
-                        PackageIdentity? packageToShade = dependencies.FirstOrDefault(i => string.Equals(i.Id, shadeDependency, StringComparison.OrdinalIgnoreCase));
+                        PackageIdentity packageToShade = dependencies.FirstOrDefault(i => string.Equals(i.Id, shadeDependency, StringComparison.OrdinalIgnoreCase));
 
-                        if (packageToShade != null)
+                        if (packageToShade.Id != null)
                         {
-                            DirectoryInfo nearestCompatibleTargetFrameworkDirectoryInfo = GetNearest(packageToShade.Value);
+                            DirectoryInfo nearestCompatibleTargetFrameworkDirectoryInfo = GetNearest(packageToShade);
 
                             if (nearestCompatibleTargetFrameworkDirectoryInfo == null)
                             {
@@ -159,8 +162,8 @@ namespace PackageShading.Tasks
                                 // The location for the shaded assembly is under "obj"
                                 assemblyToRename.ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", $"{assemblyName}.dll"));
 
-                                assemblyToRename.Metadata["NuGetPackageId"] = packageToShade.Value.Id;
-                                assemblyToRename.Metadata["NuGetPackageVersion"] = packageToShade.Value.Version;
+                                assemblyToRename.Metadata["NuGetPackageId"] = packageToShade.Id;
+                                assemblyToRename.Metadata["NuGetPackageVersion"] = packageToShade.Version;
 
                                 Log.LogMessageFromText($"Shading assembly reference {assemblyToRename.FullPath} => {assemblyToRename.ShadedPath}", MessageImportance.High);
 
@@ -288,7 +291,7 @@ namespace PackageShading.Tasks
             {
                 using (JsonDocument json = JsonDocument.Parse(stream, options))
                 {
-                    JsonProperty? target = json.RootElement.GetProperty("targets").EnumerateObject().FirstOrDefault(i => i.NameEquals(TargetFramework));
+                    JsonProperty? target = json.RootElement.GetProperty("targets").EnumerateObject().FirstOrDefault(i => i.NameEquals(TargetFramework) || i.NameEquals(TargetFrameworkMoniker));
 
                     if (target == null || target.Value.Value.ValueKind == JsonValueKind.Undefined)
                     {
