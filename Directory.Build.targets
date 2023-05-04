@@ -6,12 +6,17 @@
     <PackageProjectUrl>https://github.com/jeffkl/packageshadingprototype</PackageProjectUrl>
     <PackageIcon>NuGet-Icon.png</PackageIcon>
     <PackageIconPath>$(MSBuildThisFileDirectory)branding\$(PackageIcon)</PackageIconPath>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReadmeFilePath>$(MSBuildThisFileDirectory)$(PackageReadmeFile)</PackageReadmeFilePath>
     <RepositoryUrl>https://github.com/jeffkl/packageshadingprototype.git</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPackable)' == 'true'">
-    <None Include="README.md" />
+    <None Include="$(PackageReadmeFilePath)"
+          Pack="true"
+          PackagePath="\"
+          Visible="false" />
     <None Include="$(PackageIconPath)"
           Pack="true"
           PackagePath="\"
