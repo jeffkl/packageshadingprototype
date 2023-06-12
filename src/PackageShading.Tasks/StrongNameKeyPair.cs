@@ -1,83 +1,36 @@
 ﻿using System;
 using System.IO;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 
 namespace PackageShading.Tasks
 {
-    internal sealed class StrongNameKeyPair : System.Reflection.StrongNameKeyPair
+    /// <summary>
+    /// Represents a strong name key pair for a .NET assembly.
+    /// </summary>
+    internal sealed class StrongNameKeyPair
     {
-        private static byte[] _keyPairCache;
+        private byte[] _publicKey;
 
-        private byte[] _publicKeyToken = null;
-
-        private StrongNameKeyPair(FileStream keyPairFile)
-            : base(keyPairFile)
+        public StrongNameKeyPair(string keyPath)
         {
-        }
-
-        private StrongNameKeyPair(byte[] keyPairArray)
-            : base(keyPairArray)
-        {
-        }
-
-        private StrongNameKeyPair(string keyPairContainer)
-            : base(keyPairContainer)
-        {
-        }
-
-        public byte[] PublicKeyToken
-        {
-            get
+            if (string.IsNullOrWhiteSpace(keyPath))
             {
-                if (_publicKeyToken == null)
-                {
-                    _publicKeyToken = GetPublicKeyToken();
-                }
-
-                return _publicKeyToken;
-            }
-        }
-
-        public static StrongNameKeyPair Create(string keyPath = null, string keyFilePassword = null)
-        {
-            if (!string.IsNullOrEmpty(keyPath))
-            {
-                if (!string.IsNullOrEmpty(keyFilePassword))
-                {
-                    X509Certificate2 certificate = new X509Certificate2(keyPath, keyFilePassword, X509KeyStorageFlags.Exportable);
-
-                    if (certificate.PrivateKey is not RSACryptoServiceProvider provider)
-                    {
-                        throw new InvalidOperationException("The key file is not password protected or the incorrect password was provided.");
-                    }
-
-                    return new StrongNameKeyPair(provider.ExportCspBlob(true));
-                }
-
-                return new StrongNameKeyPair(File.ReadAllBytes(keyPath));
+                throw new ArgumentNullException(nameof(keyPath));
             }
 
-            if (_keyPairCache != null)
-            {
-                return new StrongNameKeyPair(_keyPairCache);
-            }
+            _publicKey = File.ReadAllBytes(keyPath);
 
-            using (RSACryptoServiceProvider provider = new RSACryptoServiceProvider(1024, new CspParameters() { KeyNumber = 2 }))
-            {
-                _keyPairCache = provider.ExportCspBlob(!provider.PublicOnly);
-            }
-
-            return new StrongNameKeyPair(_keyPairCache);
+            PublicKeyToken = GetPublicKeyToken();
         }
+
+        /// <summary>
+        /// Gets the
+        /// </summary>
+        public byte[] PublicKey => _publicKey;
+
+        public byte[] PublicKeyToken { get; private set; }
 
         private byte[] GetPublicKeyToken()
         {
-            if (PublicKey == null)
-            {
-                return null;
-            }
-
             if (PublicKey.Length == 0)
             {
                 return Array.Empty<byte>();
@@ -182,28 +135,48 @@ namespace PackageShading.Tasks
                 {
                     const uint k = 0x5A827999;
                     uint f = (b & c) | ((~b) & d);
-                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i]; e = d; d = c; c = RotateLeft(b, 30); b = a; a = temp;
+                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i];
+                    e = d;
+                    d = c;
+                    c = RotateLeft(b, 30);
+                    b = a;
+                    a = temp;
                 }
 
                 for (int i = 20; i != 40; i++)
                 {
                     uint f = b ^ c ^ d;
                     const uint k = 0x6ED9EBA1;
-                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i]; e = d; d = c; c = RotateLeft(b, 30); b = a; a = temp;
+                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i];
+                    e = d;
+                    d = c;
+                    c = RotateLeft(b, 30);
+                    b = a;
+                    a = temp;
                 }
 
                 for (int i = 40; i != 60; i++)
                 {
                     uint f = (b & c) | (b & d) | (c & d);
                     const uint k = 0x8F1BBCDC;
-                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i]; e = d; d = c; c = RotateLeft(b, 30); b = a; a = temp;
+                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i];
+                    e = d;
+                    d = c;
+                    c = RotateLeft(b, 30);
+                    b = a;
+                    a = temp;
                 }
 
                 for (int i = 60; i != 80; i++)
                 {
                     uint f = b ^ c ^ d;
                     const uint k = 0xCA62C1D6;
-                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i]; e = d; d = c; c = RotateLeft(b, 30); b = a; a = temp;
+                    uint temp = RotateLeft(a, 5) + f + e + k + _w[i];
+                    e = d;
+                    d = c;
+                    c = RotateLeft(b, 30);
+                    b = a;
+                    a = temp;
                 }
 
                 _w[80] += a;

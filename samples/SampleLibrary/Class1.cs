@@ -1,8 +1,9 @@
-﻿using System;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Bson;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Bson.Converters;
-using Newtonsoft.Json.Bson.Utilities;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace SampleLibrary
 {
@@ -11,7 +12,7 @@ namespace SampleLibrary
         public Class1()
         {
             var p = new JsonException();
-            
+
             var x = new BsonDataRegexConverter();
         }
     }
