@@ -1,44 +1,48 @@
-# Producer Side Package Shading Prototype
+# Package Shading Prototype
+This package includes build logic to rename assemblies in your dependency graph that would otherwise be unified by the .NET SDK.  Consider the following project's dependency graph:
 
-This package was created by shading its dependencies and including them in the package.  The package author must know what assemblies they want to shade
-ahead of time.
+```xml
+<ItemGroup>
+  <PackageReference Include="PackageA" Version="1.0.0" /> <!-- PackageA 1.0.0 -> PackageZ 1.0.0 -->
+  <PackageReference Include="PackageB" Version="1.0.0" /> <!-- PackageA 1.0.0 -> PackageZ 2.0.0 -->
+</ItemGroup>
+```
+When `PackageA` and `PackageB` are restored, `PackageZ` version `2.0.0` will be used since it is the highest version.  At runtime, `PackageA` will be forced to use `PackageZ` version `2.0.0` even if it was built and tested
+against `PackageZ` version `1.0.0`.  If there have been any breaking runtime changes in PackageZ, PackageA could fail at runtime.  Since only one version of PackageZ can exist in the application directory, it can be difficult
+to workaround the issue.
 
-- The package itself has no dependencies since the runtime dependencies are included inside the package
-- The original dependency assemblies have been renamed so they won't collide with other versions in the final output folder
-- Since the dependency assemblies were renamed before SampleLibrary was compiled, all of SampleLibrary's references are correct
+On .NET Framework, you can place `PackageZ.dll` version `1.0.0.0` into a subfolder of the application directory and use assembly binding information in the App.config to tell the runtime where to find it.  This will only work
+if the assembly is strong name signed however, since the .NET assembly loader can only load different versions of the same assembly side-by-side if they are strong named signed.
 
+On .NET Core, there is no way to work around this issue.  The .NET assembly loader will always load the highest version of an assembly.  The only path forward is to recompile `PackageA` against `PackageZ` version `2.0.0.0`
+which is not always possible.
 
-![image](https://user-images.githubusercontent.com/17556515/136617847-ff2dd5a7-2fcd-4498-81db-c9000e6b8171.png)
+Package shading provides an escape hatch for the above example.  It renames the `PackageZ` version `1.0.0` assembly so it can exist in the same directory as `PackageZ` version `2.0.0` and updates any assemblies that reference it.
 
-## Sample output when consuming a consumer side shaded package
-This console app depends on a project that is using shading.  The dependencies end up in the output directory so they can be used but the console application does not know about them.
+```xml
+<ItemGroup>
+  <PackageReference Include="PackageShading.Tasks" Version="1.0.3-preview" PrivateAssets="All" />
 
-![image](https://user-images.githubusercontent.com/17556515/136617957-a1cb8860-f89e-4043-a1f4-ff3705a5039a.png)
+  <PackageReference Include="PackageA" Version="1.0.0" ShadeDependencies="PackageZ" />
+  <PackageReference Include="PackageB" Version="1.0.0" />
+</ItemGroup>
+```
 
-# Consumer Side Shading Prototype
+As the project is built, the package shader logic finds the assemblies in `PackageZ` version `1.0.0` and renames them.  The renamed assembly is then copied to the application output directory.
 
-Consider the below example.  Newtonsoft.Json.Bson 1.0.2 depends on Newtonsoft.Json 12.0.1.  Microsoft.NET.Test.Sdk 17.3.0 depends on Newtonsoft.Json 9.0.0.
-During restore, NuGet will unify the Newonsoft.Json dependency with the highest version, this case 12.0.1.  But what if that version has a breaking change?
-Microsoft.NET.Test.Sdk and all of its dependencies were built and tested against Newtonsoft.Json 9.0.0.  Let's also suppose that the package owner of
-Microsoft.NET.Test.Sdk is no longer going to ship updates and don't want to make it work with a newer version.  The solution is to shade the dependency as 
-a consumer of that package.
+Now the output folder has both `PackageZ.dll` which is version `2.0.0.0` and `PackageZ.1.0.0.0.dll`.
 
-![image](https://user-images.githubusercontent.com/17556515/213560298-e1c9b197-7a69-41a1-aaa9-1761c3ff493f.png)
+![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/390c436a-25f1-4463-ac1f-d1c409bf1c82)
 
-Now a consumer can specify that the Newtonsoft.Json dependency of Microsoft.NET.Test.Sdk should be shaded. This will rename the assembly and update all
-references to it.
+`PackageA.dll` was also updated to reference `PackageZ.1.0.0.0.dll` instead of `PackageZ.dll`.
 
-![image](https://user-images.githubusercontent.com/17556515/213561695-c9c10591-e949-42b3-9bbb-f47346a69a20.png)
+![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/4212b728-da51-4456-bf29-49db3aa55217)
 
-Now the output folder has both `Newtonsoft.Json.dll` and `Newtonsoft.Json.9.0.0.0.dll`
+## Limitations
+Assembly shading can be a great way to fix runtime issues with dependencies, but it does have some limitations.
 
-![image](https://user-images.githubusercontent.com/17556515/213564522-a8c6b7fb-a1d1-49ff-b711-e3831636b568.png)
-
-The assemblies that reference `Newtonsoft.Json` version 9.0.0 were also updated so they load the correct version:
-
-![image](https://user-images.githubusercontent.com/17556515/213562494-4f952813-db1b-4003-ae76-6a3cfd02da9e.png)
-
-And finally, and assembly that referenced an assembly that was updated, has to be re-signed so any referencing assembly also has to be updated (notice
-the public key token is different):
-
-![image](https://user-images.githubusercontent.com/17556515/213563964-003290ad-6af9-454b-8149-253c064160fe.png)
+- Shaded assemblies are strong name signed with a new public key pair.  In the process, Authenticode signatures are lost.
+- Since a shaded assembly is loaded side-by-side with a newer version, you will not be able to pass types around between the two versions.  You will get a compile-time error if you attempt to do this.  If you have to pass
+  types around between assemblies, shading will not be possible.
+- Assembly references will be updated because they are easy to discover but any code that uses reflection to load types will not be updated.  This includes `Assembly.Load` and `Assembly.LoadFrom`.  
+  If you have code that uses reflection to load types from a shaded assembly, you will need to update it to use the new assembly name.
