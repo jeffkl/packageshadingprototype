@@ -1,8 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net472;netstandard2.1</TargetFrameworks>
+    <TargetFrameworks>net472;netstandard2.0</TargetFrameworks>
     <ArtifactsPath>..\..\samples\nupkgs</ArtifactsPath>
     <BuildOutputTargetFolder>build\</BuildOutputTargetFolder>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <DefaultArtifactsFileMatch>*.nupkg</DefaultArtifactsFileMatch>
     <Description>An MSBuild extension that allows you to shade assembly dependencies.</Description>
     <DevelopmentDependency>true</DevelopmentDependency>
@@ -22,12 +23,16 @@
     <PackageReference Include="Microsoft.Bcl.HashCode" />
     <PackageReference Include="Microsoft.Build.Artifacts" />
     <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="Runtime" />
-    <PackageReference Include="NuGet.Frameworks" />
     <PackageReference Include="Mono.Cecil" />
+    <PackageReference Include="NuGet.Frameworks" />
+    <PackageReference Include="NuGet.Versioning" />
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
   <ItemGroup>
     <None Include="build\*" Pack="true" PackagePath="build\" CopyToOutputDirectory="PreserveNewest" TargetPath="%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PackageShading.Tasks.UnitTests" />
   </ItemGroup>
   <Target Name="IncludeReferenceCopyLocalPathsInBuildOutputInPackage"
           BeforeTargets="_GetBuildOutputFilesWithTfm"

@@ -1,11 +1,10 @@
-﻿using System;
+﻿using Microsoft.Build.Framework;
+using Mono.Cecil;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
-using Microsoft.Build.Framework;
-using Mono.Cecil;
 
 namespace PackageShading.Tasks
 {
@@ -15,50 +14,47 @@ namespace PackageShading.Tasks
     [DebuggerDisplay("{AssemblyName, nq} => {ShadedAssemblyName,nq} ({ShadedPath,nq}}")]
     internal sealed class AssemblyToRename
     {
-        public AssemblyToRename(ITaskItem taskItem)
-        {
-            if (taskItem != null)
-            {
-                FullPath = taskItem.ItemSpec;
-                AssemblyName = AssemblyName.GetAssemblyName(FullPath);
-                Metadata = taskItem.CloneCustomMetadata();
-            }
-        }
-
-        public AssemblyToRename(string fullPath, ITaskItem taskItem = null)
-            : this(taskItem)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AssemblyToRename" /> class.
+        /// </summary>
+        /// <param name="fullPath">The full path to the assembly.</param>
+        /// <param name="assemblyName">The <see cref="AssemblyName" /> of the assembly.</param>
+        /// <param name="taskItem">An optional <see cref="ITaskItem" /> to populate the <see cref="Metadata" /> dictionary with.</param>
+        public AssemblyToRename(string fullPath, AssemblyName assemblyName, ITaskItem taskItem = null)
         {
             FullPath = fullPath;
-            AssemblyName = AssemblyName.GetAssemblyName(FullPath);
-            if (Metadata == null)
-            {
-                Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            }
+            AssemblyName = assemblyName;
+            Metadata = taskItem == null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) : taskItem.CloneCustomMetadata();
         }
 
-        public IDictionary Metadata { get; }
-
+        /// <summary>
+        /// Gets the <see cref="AssemblyName" /> of the assembly.
+        /// </summary>
         public AssemblyName AssemblyName { get; }
 
-        public AssemblyNameDefinition ShadedAssemblyName { get; set; }
+        /// <summary>
+        /// Gets or sets the destination subdirectory for the assembly.
+        /// </summary>
+        public string DestinationSubdirectory { get; set; }
 
+        /// <summary>
+        /// Gets the full path to the assembly.
+        /// </summary>
         public string FullPath { get; }
 
+        /// <summary>
+        /// Gets an <see cref="IDictionary" /> containing the metadata for an MSBuild item.
+        /// </summary>
+        public IDictionary Metadata { get; }
+
+        /// <summary>
+        /// Gets or sets the <see cref="AssemblyNameDefinition" /> of the shaded assembly.
+        /// </summary>
+        public AssemblyNameDefinition ShadedAssemblyName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the full path to the shaded assembly.
+        /// </summary>
         public string ShadedPath { get; set; }
-
-        public bool IsReference { get; set; }
-
-        public AssemblyDefinition ReadAssembly()
-        {
-            using DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
-
-            resolver.AddSearchDirectory(Path.GetDirectoryName(FullPath));
-
-            return AssemblyDefinition.ReadAssembly(FullPath, new ReaderParameters
-            {
-                AssemblyResolver = resolver,
-                ReadSymbols = File.Exists(Path.ChangeExtension(FullPath, ".pdb"))
-            });
-        }
     }
 }

@@ -1,135 +1,104 @@
-﻿using System;
+﻿using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
+using Mono.Cecil;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Microsoft.Build.Framework;
-using Microsoft.Build.Utilities;
-using Mono.Cecil;
 
 namespace PackageShading.Tasks
 {
+    /// <summary>
+    /// Represents an MSBuild task that shades assemblies.
+    /// </summary>
     public class ShadeAssemblies : Task
     {
+        /// <summary>
+        /// Gets or sets an array of <see cref="ITaskItem" /> objects representing the assemblies to shade.
+        /// </summary>
         [Required]
-        public ITaskItem[] References { get; set; }
+        public ITaskItem[] AssembliesToShade { get; set; }
 
-        public string IntermediateOutputPath { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether the debugger should be launched when the task is executed.
+        /// </summary>
+        public bool Debug { get; set; }
 
-        [Output]
-        public ITaskItem[] ReferencesToUpdate { get; set; }
+        /// <summary>
+        /// Gets or sets the full path to the key file used to sign shaded assemblies.
+        /// </summary>
+        [Required]
+        public string ShadedAssemblyKeyFile { get; set; }
 
         public override bool Execute()
         {
-            // As an optimization, loop through all of the references first and determine what they'll be renamed to.  This is
-            // so that later on, we can process each assembly once
-
-            IList<AssemblyToRename> assembliesToRename = new List<AssemblyToRename>();
-
-            foreach (ITaskItem item in References)
+            if (Debug)
             {
-                string packageId = item.GetMetadata("NuGetPackageId");
-                string sourceType = item.GetMetadata("NuGetSourceType");
-
-                if (string.IsNullOrWhiteSpace(packageId) || !string.Equals(sourceType, "Package", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Ignore Reference items that didn't come from a package.  Another option would be to allow a consumer to opt-out
-                    // a single PackageReference from shading.  At the moment this shades EVERY PackageReference
-                    continue;
-                }
-
-                AssemblyToRename assemblyToRename = new AssemblyToRename(item);
-
-                // The new assembly file name includes the version to make it unique so Newtonsoft.Json.12.0.0.0.dll
-                string assemblyName = $"{assemblyToRename.AssemblyName.Name}.{assemblyToRename.AssemblyName.Version}";
-
-                assemblyToRename.ShadedAssemblyName = new AssemblyNameDefinition(assemblyName, assemblyToRename.AssemblyName.Version);
-
-                // The location for the shaded assembly is under "obj"
-                assemblyToRename.ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", $"{assemblyName}.dll"));
-                
-                Log.LogMessageFromText($"Shading assembly reference {assemblyToRename.FullPath} => {assemblyToRename.ShadedPath}", MessageImportance.High);
-
-                assembliesToRename.Add(assemblyToRename);
+                Debugger.Launch();
             }
 
-            List<ITaskItem> referencesToUpdate = new List<ITaskItem>(assembliesToRename.Count);
+            StrongNameKeyPair strongNameKeyPair = new StrongNameKeyPair(ShadedAssemblyKeyFile);
 
-            // Generate a strong name key pair on the fly, we could also use the SNK that the project is
-            System.Reflection.StrongNameKeyPair strongNameKeyPair = StrongNameKeyPair.Create();
+            Dictionary<string, AssemblyName> newAssemblyNames = AssembliesToShade.ToDictionary(i => i.GetMetadata(ItemMetadataNames.AssemblyName), i => new AssemblyName(i.GetMetadata(ItemMetadataNames.ShadedAssemblyName)), StringComparer.OrdinalIgnoreCase);
 
-            // Now loop through each assembly to process, this could probably be done in parallel if needed
-            foreach (AssemblyToRename assemblyToRename in assembliesToRename)
+            foreach (ITaskItem assemblyToShade in AssembliesToShade)
             {
-                // Read in the source assembly
-                using (AssemblyDefinition assembly = assemblyToRename.ReadAssembly())
+                FileInfo assemblyPath = new FileInfo(assemblyToShade.GetMetadata(ItemMetadataNames.OriginalPath));
+                FileInfo shadedAssemblyPath = new FileInfo(assemblyToShade.ItemSpec);
+
+                AssemblyName shadedAssemblyName = new AssemblyName(assemblyToShade.GetMetadata(ItemMetadataNames.ShadedAssemblyName));
+
+                using (AssemblyDefinition assembly = ReadAssembly(assemblyPath))
                 {
-                    Directory.CreateDirectory(Path.GetDirectoryName(assemblyToRename.ShadedPath));
+                    string previousAssemblyName = assembly.Name.FullName;
 
-                    // This renames the assembly "name", not the file name
-                    assembly.Name.Name = assemblyToRename.ShadedAssemblyName.Name;
+                    Directory.CreateDirectory(shadedAssemblyPath.DirectoryName);
 
-                    // Remove the strong name signature flag, this is updated if we add a strong name later
+                    assembly.Name.Name = shadedAssemblyName.Name;
+
                     assembly.MainModule.Attributes &= ~ModuleAttributes.StrongNameSigned;
 
-                    // You must write an assembly with a strong name in order to get its public key token so this is
-                    // writing it to disk in case we need the public key token later on
-                    assembly.Write(
-                        assemblyToRename.ShadedPath,
-                        new WriterParameters
-                        {
-                            StrongNameKeyPair = strongNameKeyPair,
-                        });
+                    Log.LogMessageFromText($"Shading assembly {assemblyPath.FullName} => {shadedAssemblyPath.FullName}", MessageImportance.Normal);
+                    Log.LogMessageFromText($"  Name: {previousAssemblyName} => {shadedAssemblyName.FullName}", MessageImportance.Normal);
 
-                    bool dirty = false;
-                    // Loop through the assembly references to find any that need to be updated
                     foreach (AssemblyNameReference assemblyReference in assembly.MainModule.AssemblyReferences)
                     {
-                        // Find a renamed assembly that matches the reference
-                        AssemblyToRename newReference = assembliesToRename.FirstOrDefault(i => assemblyReference.FullName == i.AssemblyName.FullName);
-
-                        if (newReference != null)
+                        if (newAssemblyNames.TryGetValue(assemblyReference.FullName, out AssemblyName shadedReferenceAssemblyName))
                         {
-                            Log.LogMessageFromText($"  - {assemblyReference.FullName} -> {newReference.ShadedAssemblyName.FullName}", MessageImportance.High);
+                            Log.LogMessageFromText($"  Reference: {assemblyReference.FullName} -> {shadedReferenceAssemblyName.FullName}", MessageImportance.Normal);
 
-                            // Update the reference name and public key token
-                            assemblyReference.Name = newReference.ShadedAssemblyName.Name;
-                            assemblyReference.PublicKeyToken = assembly.Name.PublicKeyToken;
-
-                            dirty = true;
+                            assemblyReference.Name = shadedReferenceAssemblyName.Name;
+                            assemblyReference.PublicKeyToken = strongNameKeyPair.PublicKeyToken;
                         }
                     }
 
-                    // Write the assembly one more time if any references were updated
-                    if (dirty)
-                    {
-                        assembly.Write(
-                            assemblyToRename.ShadedPath,
-                            new WriterParameters
-                            {
-                                StrongNameKeyPair = strongNameKeyPair,
-                            });
-                    }
+                    assembly.Write(
+                        shadedAssemblyPath.FullName,
+                        new WriterParameters
+                        {
+                            StrongNameKeyBlob = strongNameKeyPair.PublicKey,
+                        });
                 }
 
-                // This just verifies that the assembly isn't broken.  If it is, ResolveAssemblyReferences fails later on, I just put
-                // this here so I could debug it
-                AssemblyName _ = AssemblyName.GetAssemblyName(assemblyToRename.ShadedPath);
-
-                // Create an item to return that represents the shaded assembly, later on it the original will be replaced with this one
-                TaskItem referenceToUpdate = new TaskItem(Path.GetFullPath(assemblyToRename.ShadedPath), assemblyToRename.Metadata);
-                
-                referenceToUpdate.SetMetadata("HintPath", referenceToUpdate.ItemSpec);
-                // Metadata to maybe used later saying its a shaded assembly
-                referenceToUpdate.SetMetadata("IsShadedAssembly", bool.TrueString);
-                referenceToUpdate.SetMetadata("AssetType", "runtime");
-
-                referencesToUpdate.Add(referenceToUpdate);
+                AssemblyName _ = AssemblyName.GetAssemblyName(shadedAssemblyPath.FullName);
             }
 
-            ReferencesToUpdate = referencesToUpdate.ToArray();
-
             return !Log.HasLoggedErrors;
+        }
+
+        private AssemblyDefinition ReadAssembly(FileInfo assemblyPath)
+        {
+            using DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
+
+            resolver.AddSearchDirectory(assemblyPath.DirectoryName);
+
+            return AssemblyDefinition.ReadAssembly(assemblyPath.FullName, new ReaderParameters
+            {
+                AssemblyResolver = resolver,
+                ReadSymbols = File.Exists(Path.ChangeExtension(assemblyPath.FullName, ".pdb"))
+            });
         }
     }
 }
