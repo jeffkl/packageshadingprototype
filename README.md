@@ -30,9 +30,13 @@ Package shading provides an escape hatch for the above example.  It renames the 
 
 As the project is built, the package shader logic finds the assemblies in `PackageZ` version `1.0.0` and renames them.  The renamed assembly is then copied to the application output directory.
 
-Now the output folder has both `PackageZ.dll` which is version `2.0.0.0` and `PackageZ.1.0.0.0.dll`.  `PackageA.dll` was also updated to reference `PackageZ.1.0.0.0.dll` instead of `PackageZ.dll`.
+Now the output folder has both `PackageZ.dll` which is version `2.0.0.0` and `PackageZ.1.0.0.0.dll`.
 
-**INSERT IMAGES HERE**
+![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/390c436a-25f1-4463-ac1f-d1c409bf1c82)
+
+`PackageA.dll` was also updated to reference `PackageZ.1.0.0.0.dll` instead of `PackageZ.dll`.
+
+![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/4212b728-da51-4456-bf29-49db3aa55217)
 
 ## Limitations
 Assembly shading can be a great way to fix runtime issues with dependencies, but it does have some limitations.
