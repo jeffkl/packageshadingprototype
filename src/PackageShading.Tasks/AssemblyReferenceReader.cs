@@ -21,6 +21,11 @@ namespace PackageShading.Tasks
             {
                 FileInfo assemblyFileInfo = new FileInfo(assemblyPath);
 
+                if (!assemblyFileInfo.Exists)
+                {
+                    continue;
+                }
+
                 resolver.AddSearchDirectory(assemblyFileInfo.DirectoryName);
 
                 using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(assemblyFileInfo.FullName, new ReaderParameters
