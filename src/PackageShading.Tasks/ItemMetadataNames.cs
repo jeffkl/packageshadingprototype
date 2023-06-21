@@ -44,5 +44,10 @@
         /// The version of a NuGet package.
         /// </summary>
         public const string Version = nameof(Version);
+
+        /// <summary>
+        /// The version override of a NuGet package.
+        /// </summary>
+        public const string VersionOverride = nameof(VersionOverride);
     }
 }
