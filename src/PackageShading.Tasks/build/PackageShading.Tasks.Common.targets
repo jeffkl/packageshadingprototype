@@ -15,6 +15,7 @@
                           IntermediateOutputPath="$(IntermediateOutputPath)"
                           NuGetPackageRoot="$(NuGetPackageRoot)"
                           PackageReferences="@(PackageReference)"
+                          PackageVersions="@(PackageVersion)"
                           ProjectAssetsFile="$(ProjectAssetsFile)"
                           References="@(Reference)"
                           ShadedAssemblyKeyFile="$(ShadedAssemblyKeyFile)"

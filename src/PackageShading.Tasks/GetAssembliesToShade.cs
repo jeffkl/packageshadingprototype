@@ -69,6 +69,11 @@ namespace PackageShading.Tasks
         public ITaskItem[] PackageReferences { get; set; }
 
         /// <summary>
+        /// Gets or sets an array of <see cref="ITaskItem" /> objects representing the NuGet package versions.
+        /// </summary>
+        public ITaskItem[] PackageVersions { get; set; }
+
+        /// <summary>
         /// Gets or sets the full path to the NuGet assets file.
         /// </summary>
         [Required]
@@ -277,6 +282,8 @@ namespace PackageShading.Tasks
         {
             HashSet<PackageIdentity> packagesToShade = new HashSet<PackageIdentity>();
 
+            Dictionary<string, string> packageVersions = PackageVersions != null && PackageVersions.Any() ? PackageVersions.ToDictionary(i => i.ItemSpec, i => i.GetMetadata(ItemMetadataNames.Version), StringComparer.OrdinalIgnoreCase) : null;
+
             foreach (ITaskItem packageReference in PackageReferences)
             {
                 string shadeDependencies = packageReference.GetMetadata(ItemMetadataNames.ShadeDependencies);
@@ -285,8 +292,8 @@ namespace PackageShading.Tasks
                 {
                     continue;
                 }
-
-                PackageIdentity packageIdentity = new PackageIdentity(packageReference.ItemSpec, packageReference.GetMetadata(ItemMetadataNames.Version));
+                
+                PackageIdentity packageIdentity = new PackageIdentity(packageReference.ItemSpec, GetPackageVersion(packageReference, packageVersions));
 
                 if (packages.TryGetValue(packageIdentity, out HashSet<PackageIdentity> dependencies))
                 {
@@ -319,6 +326,30 @@ namespace PackageShading.Tasks
             }
 
             return packagesToShade;
+
+            string GetPackageVersion(ITaskItem packageReference, Dictionary<string, string> packageVersions)
+            {
+                string packageVersion = packageReference.GetMetadata(ItemMetadataNames.Version);
+
+                if (!string.IsNullOrEmpty(packageVersion))
+                {
+                    return packageVersion;
+                }
+
+                packageVersion = packageReference.GetMetadata(ItemMetadataNames.VersionOverride);
+
+                if (!string.IsNullOrEmpty(packageVersion))
+                {
+                    return packageVersion;
+                }
+
+                if (packageVersions != null && packageVersions.TryGetValue(packageReference.ItemSpec, out packageVersion))
+                {
+                    return packageVersion;
+                }
+
+                return string.Empty;
+            }
         }
 
         private IEnumerable<AssemblyToRename> GetResourceAssemblies(StrongNameKeyPair strongNameKeyPair, AssemblyToRename assemblyToRename)
