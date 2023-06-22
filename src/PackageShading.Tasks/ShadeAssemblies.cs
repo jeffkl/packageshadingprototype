@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace PackageShading.Tasks
 {
@@ -43,6 +44,8 @@ namespace PackageShading.Tasks
 
             Dictionary<string, AssemblyName> newAssemblyNames = AssembliesToShade.ToDictionary(i => i.GetMetadata(ItemMetadataNames.AssemblyName), i => new AssemblyName(i.GetMetadata(ItemMetadataNames.ShadedAssemblyName)), StringComparer.OrdinalIgnoreCase);
 
+            Dictionary<string, string> internalsVisibleTo = AssembliesToShade.ToDictionary(i => i.GetMetadata(ItemMetadataNames.InternalsVisibleTo), i => i.GetMetadata(ItemMetadataNames.ShadedInternalsVisibleTo), StringComparer.OrdinalIgnoreCase);
+
             foreach (ITaskItem assemblyToShade in AssembliesToShade)
             {
                 FileInfo assemblyPath = new FileInfo(assemblyToShade.GetMetadata(ItemMetadataNames.OriginalPath));
@@ -55,6 +58,20 @@ namespace PackageShading.Tasks
                     string previousAssemblyName = assembly.Name.FullName;
 
                     Directory.CreateDirectory(shadedAssemblyPath.DirectoryName);
+
+                    assembly.MainModule.TryGetTypeReference(typeof(InternalsVisibleToAttribute).FullName, out TypeReference internalsVisibleToTypeReference);
+
+                    foreach (CustomAttribute internalsVisibleToAttribute in assembly.CustomAttributes.Where(i => i.AttributeType == internalsVisibleToTypeReference))
+                    {
+                        if (internalsVisibleTo.TryGetValue(internalsVisibleToAttribute.ConstructorArguments[0].Value as string, out string value))
+                        {
+                            CustomAttributeArgument argument = new CustomAttributeArgument(internalsVisibleToAttribute.ConstructorArguments[0].Type, value);
+
+                            internalsVisibleToAttribute.ConstructorArguments.RemoveAt(0);
+                            internalsVisibleToAttribute.ConstructorArguments.Add(argument);
+                        }
+
+                    }
 
                     assembly.Name.Name = shadedAssemblyName.Name;
 
@@ -74,17 +91,12 @@ namespace PackageShading.Tasks
                         }
                     }
 
-                    assembly.Write(
-                        shadedAssemblyPath.FullName,
-                        new WriterParameters
-                        {
-                            StrongNameKeyBlob = strongNameKeyPair.PublicKey,
-                        });
+                    assembly.Write(shadedAssemblyPath.FullName, strongNameKeyPair.WriterParameters);
                 }
 
                 AssemblyName _ = AssemblyName.GetAssemblyName(shadedAssemblyPath.FullName);
             }
-
+            
             return !Log.HasLoggedErrors;
         }
 

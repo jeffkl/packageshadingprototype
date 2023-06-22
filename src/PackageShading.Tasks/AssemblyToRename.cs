@@ -43,6 +43,11 @@ namespace PackageShading.Tasks
         public string FullPath { get; }
 
         /// <summary>
+        /// Gets or sets the value of a <see cref="InternalsVisibleToAttribute" /> that would reference the assembly.
+        /// </summary>
+        public string InternalsVisibleTo { get; set; }
+
+        /// <summary>
         /// Gets an <see cref="IDictionary" /> containing the metadata for an MSBuild item.
         /// </summary>
         public IDictionary Metadata { get; }
@@ -51,6 +56,11 @@ namespace PackageShading.Tasks
         /// Gets or sets the <see cref="AssemblyNameDefinition" /> of the shaded assembly.
         /// </summary>
         public AssemblyNameDefinition ShadedAssemblyName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the value of a <see cref="InternalsVisibleToAttribute" /> that would reference the assembly after it has been shaded.
+        /// </summary>
+        public string ShadedInternalsVisibleTo { get; set; }
 
         /// <summary>
         /// Gets or sets the full path to the shaded assembly.

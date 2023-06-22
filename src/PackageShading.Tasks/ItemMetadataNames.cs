@@ -26,6 +26,11 @@
         public const string HintPath = nameof(HintPath);
 
         /// <summary>
+        /// The previous value for the <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute" />.
+        /// </summary>
+        public const string InternalsVisibleTo = nameof(InternalsVisibleTo);
+
+        /// <summary>
         /// The NuGet package version.
         /// </summary>
         public const string OriginalPath = nameof(OriginalPath);
@@ -39,6 +44,11 @@
         /// The list of dependencies to shade.
         /// </summary>
         public const string ShadeDependencies = nameof(ShadeDependencies);
+
+        /// <summary>
+        /// The shaded value for the <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute" />.
+        /// </summary>
+        public const string ShadedInternalsVisibleTo = nameof(ShadedInternalsVisibleTo);
 
         /// <summary>
         /// The version of a NuGet package.

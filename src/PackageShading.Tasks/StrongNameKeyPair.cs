@@ -1,5 +1,8 @@
-﻿using System;
+﻿using Mono.Cecil;
+using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 
 namespace PackageShading.Tasks
 {
@@ -8,7 +11,7 @@ namespace PackageShading.Tasks
     /// </summary>
     internal sealed class StrongNameKeyPair
     {
-        private byte[] _publicKey;
+        private static readonly MethodInfo CryptoService_GetPublicKeyMethodInfo = typeof(WriterParameters).Assembly.GetType("Mono.Cecil.CryptoService").GetMethod("GetPublicKey", BindingFlags.Static | BindingFlags.Public);
 
         public StrongNameKeyPair(string keyPath)
         {
@@ -17,21 +20,42 @@ namespace PackageShading.Tasks
                 throw new ArgumentNullException(nameof(keyPath));
             }
 
-            _publicKey = File.ReadAllBytes(keyPath);
+            KeyPair = File.ReadAllBytes(keyPath);
 
-            PublicKeyToken = GetPublicKeyToken();
+            WriterParameters = new WriterParameters
+            {
+                StrongNameKeyBlob = KeyPair
+            };
+
+            PublicKey = CryptoService_GetPublicKeyMethodInfo.Invoke(null, new object[1] { WriterParameters }) as byte[];
+
+            PublicKeyString = string.Join(string.Empty, PublicKey.Select(i => i.ToString("x2")));
+
+            PublicKeyToken = GetPublicKeyToken(PublicKey);
+
+            PublicKeyTokenString = string.Join(string.Empty, PublicKeyToken.Select(i => i.ToString("x2")));
         }
 
-        /// <summary>
-        /// Gets the
-        /// </summary>
-        public byte[] PublicKey => _publicKey;
+        public byte[] KeyPair { get; private set; }
+
+        public byte[] PublicKey { get; private set; }
+
+        public string PublicKeyString { get; private set; }
 
         public byte[] PublicKeyToken { get; private set; }
 
-        private byte[] GetPublicKeyToken()
+        public string PublicKeyTokenString { get; private set; }
+
+        public WriterParameters WriterParameters { get; private set; }
+
+        private byte[] GetPublicKeyToken(byte[] key)
         {
-            if (PublicKey.Length == 0)
+            if (key == null)
+            {
+                return null;
+            }
+
+            if (key.Length == 0)
             {
                 return Array.Empty<byte>();
             }
@@ -40,7 +64,7 @@ namespace PackageShading.Tasks
 
             Sha1ForNonSecretPurposes sha1 = default;
             sha1.Start();
-            sha1.Append(PublicKey);
+            sha1.Append(key);
             sha1.Finish(hash);
 
             byte[] publicKeyToken = new byte[8];
