@@ -196,6 +196,9 @@ namespace PackageShading.Tasks
                         ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", Path.GetFileName(assemblyFullPath)))
                     };
 
+                    assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyName);
+                    assemblyToRename.ShadedInternalsVisibleTo = $"{assemblyToRename.ShadedAssemblyName.Name}, PublicKey={strongNameKeyPair.PublicKeyString}";
+
                     assembliesToRename.Add(assemblyToRename);
 
                     stack.Push(assemblyToRename);
@@ -242,6 +245,8 @@ namespace PackageShading.Tasks
                             PublicKey = strongNameKeyPair.PublicKey,
                         };
 
+                        assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyFile.Name);
+                        assemblyToRename.ShadedInternalsVisibleTo = $"{assemblyToRename.ShadedAssemblyName.Name}, PublicKey={strongNameKeyPair.PublicKeyString}";
                         assemblyToRename.ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", assemblyFile.Subdirectory ?? string.Empty, $"{assemblyName}.dll"));
 
                         assembliesToRename.Add(assemblyToRename);
@@ -397,6 +402,8 @@ namespace PackageShading.Tasks
                 assemblyToShade.SetMetadata(ItemMetadataNames.OriginalPath, assemblyToRename.FullPath);
                 assemblyToShade.SetMetadata(ItemMetadataNames.ShadedAssemblyName, assemblyToRename.ShadedAssemblyName.FullName);
                 assemblyToShade.SetMetadata(ItemMetadataNames.AssemblyName, assemblyToRename.AssemblyName.FullName);
+                assemblyToShade.SetMetadata(ItemMetadataNames.InternalsVisibleTo, assemblyToRename.InternalsVisibleTo);
+                assemblyToShade.SetMetadata(ItemMetadataNames.ShadedInternalsVisibleTo, assemblyToRename.ShadedInternalsVisibleTo);
 
                 assemblyToShade.SetMetadata(ItemMetadataNames.DestinationSubdirectory, string.IsNullOrWhiteSpace(assemblyToRename.DestinationSubdirectory) ? string.Empty : assemblyToRename.DestinationSubdirectory);
 
