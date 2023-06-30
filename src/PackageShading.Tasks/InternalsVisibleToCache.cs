@@ -1,43 +1,24 @@
-﻿using System;
+﻿using Mono.Cecil;
+using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
 namespace PackageShading.Tasks
 {
     internal class InternalsVisibleToCache
     {
-        private static readonly ConcurrentDictionary<AssemblyName, Lazy<string>> Cache = new ConcurrentDictionary<AssemblyName, Lazy<string>>(AssemblyNameComparer.Instance);
+        private static readonly ConcurrentDictionary<string, Lazy<string>> Cache = new ConcurrentDictionary<string, Lazy<string>>(StringComparer.OrdinalIgnoreCase);
 
-        public static string GetInternalsVisibleTo(AssemblyName assemblyName) => Cache.GetOrAdd(assemblyName, new Lazy<string>(() =>
+        public static string GetInternalsVisibleTo(string path) => Cache.GetOrAdd(path, new Lazy<string>(() =>
         {
-            if (assemblyName.Flags.HasFlag(AssemblyNameFlags.PublicKey))
+            using AssemblyDefinition assemblyDefinition = AssemblyDefinition.ReadAssembly(path);
+
+            if (assemblyDefinition.Name.HasPublicKey)
             {
-                return $"{assemblyName.Name}, {string.Join(string.Empty, assemblyName.GetPublicKey().Select(i => i.ToString("x2")))}";
+                return $"{assemblyDefinition.Name.Name}, PublicKey={string.Join(string.Empty, assemblyDefinition.Name.PublicKey.Select(i => i.ToString("x2")))}";
             }
 
-            return assemblyName.Name;
+            return assemblyDefinition.Name.Name;
         })).Value;
-
-        private class AssemblyNameComparer : IEqualityComparer<AssemblyName>
-        {
-            public static readonly AssemblyNameComparer Instance = new AssemblyNameComparer();
-
-            public bool Equals(AssemblyName x, AssemblyName y)
-            {
-                if (x == null || y == null)
-                {
-                    return false;
-                }
-
-                return string.Equals(x.FullName, y.FullName);
-            }
-
-            public int GetHashCode(AssemblyName obj)
-            {
-                return obj.FullName.GetHashCode();
-            }
-        }
     }
 }

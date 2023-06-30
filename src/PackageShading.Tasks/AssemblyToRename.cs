@@ -12,7 +12,7 @@ namespace PackageShading.Tasks
     /// Represents an assembly that will be renamed.
     /// </summary>
     [DebuggerDisplay("{AssemblyName, nq} => {ShadedAssemblyName,nq} ({ShadedPath,nq}}")]
-    internal sealed class AssemblyToRename
+    internal sealed class AssemblyToRename : IEquatable<AssemblyToRename>
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="AssemblyToRename" /> class.
@@ -66,5 +66,15 @@ namespace PackageShading.Tasks
         /// Gets or sets the full path to the shaded assembly.
         /// </summary>
         public string ShadedPath { get; set; }
+
+        public bool Equals(AssemblyToRename other)
+        {
+            if (other == null)
+            {
+                return false;
+            }
+
+            return string.Equals(AssemblyName.FullName, other.AssemblyName.FullName);
+        }
     }
 }

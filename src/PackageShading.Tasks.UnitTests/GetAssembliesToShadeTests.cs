@@ -98,26 +98,26 @@ namespace PackageShading.Tasks.UnitTests
                 }
             };
 
-            MockAssemblyReferenceReader assemblyReferenceReader = new MockAssemblyReferenceReader
+            MockAssemblyInformationReader assemblyReferenceReader = new MockAssemblyInformationReader
             {
-                [assemblyNameNewtonsoftJson9.FullName] = new List<(string AssemblyFullPath, AssemblyName AssemblyName)>
+                [assemblyNameNewtonsoftJson9.FullName] = new List<AssemblyReference>
                 {
-                    (pathMicrosoftNETLogging, assemblyNameMicrosoftNETLogging)
+                    new AssemblyReference(pathMicrosoftNETLogging, assemblyNameMicrosoftNETLogging)
                 },
-                [assemblyNameMicrosoftNETLogging.FullName] = new List<(string AssemblyFullPath, AssemblyName AssemblyName)>
+                [assemblyNameMicrosoftNETLogging.FullName] = new List<AssemblyReference>
                 {
-                    (pathMicrosoftNETCommunication, assemblyNameMicrosoftNETCommunication)
+                    new AssemblyReference(pathMicrosoftNETCommunication, assemblyNameMicrosoftNETCommunication)
                 },
-                [assemblyNameMicrosoftNETCommunication.FullName] = new List<(string AssemblyFullPath, AssemblyName AssemblyName)>()
+                [assemblyNameMicrosoftNETCommunication.FullName] = new List<AssemblyReference>()
                 {
-                    (pathMicrosoftNETTestSdk, assemblyNameMicrosoftNETTestSdk)
+                    new AssemblyReference(pathMicrosoftNETTestSdk, assemblyNameMicrosoftNETTestSdk)
                 },
-                [assemblyNameNewtonsoftJson12.FullName] = new List<(string AssemblyFullPath, AssemblyName AssemblyName)>
+                [assemblyNameNewtonsoftJson12.FullName] = new List<AssemblyReference>
                 {
-                    (pathNewtonsoftJsonBson, assemblyNameNewtonsoftJsonBson)
+                    new AssemblyReference(pathNewtonsoftJsonBson, assemblyNameNewtonsoftJsonBson)
                 },
-                [assemblyNameNewtonsoftJsonBson.FullName] = new List<(string AssemblyFullPath, AssemblyName AssemblyName)>(),
-                [assemblyNameMicrosoftNETTestSdk.FullName] = new List<(string AssemblyFullPath, AssemblyName AssemblyName)>(),
+                [assemblyNameNewtonsoftJsonBson.FullName] = new List<AssemblyReference>(),
+                [assemblyNameMicrosoftNETTestSdk.FullName] = new List<AssemblyReference>(),
             };
 
             GetAssembliesToShade task = new GetAssembliesToShade(assetsFileLoader, packageAssemblyResolver, assemblyReferenceReader)

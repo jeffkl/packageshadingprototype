@@ -18,20 +18,20 @@ namespace PackageShading.Tasks
     {
         private static readonly ConcurrentDictionary<string, Lazy<Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>>> AssetsFileCache = new ConcurrentDictionary<string, Lazy<Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>>>(StringComparer.OrdinalIgnoreCase);
         private static readonly char[] SplitChars = new[] { ';', ',' };
-        private readonly IAssemblyReferenceReader _assemblyReferenceReader;
+        private readonly IAssemblyInformationReader _assemblyInformationReader;
         private readonly INuGetAssetFileLoader _nuGetAssetFileLoader;
         private readonly IPackageAssemblyResolver _packageAssemblyResolver;
 
         public GetAssembliesToShade()
-            : this(new NuGetAssetFileLoader(), new PackageAssemblyResolver(), new AssemblyReferenceReader())
+            : this(new NuGetAssetFileLoader(), new PackageAssemblyResolver(), new AssemblyInformationReader())
         {
         }
 
-        public GetAssembliesToShade(INuGetAssetFileLoader nuGetAssetFileLoader, IPackageAssemblyResolver packageAssemblyResolver, IAssemblyReferenceReader assemblyReferenceReader)
+        public GetAssembliesToShade(INuGetAssetFileLoader nuGetAssetFileLoader, IPackageAssemblyResolver packageAssemblyResolver, IAssemblyInformationReader assemblyInformationReader)
         {
             _nuGetAssetFileLoader = nuGetAssetFileLoader ?? throw new ArgumentNullException(nameof(nuGetAssetFileLoader));
             _packageAssemblyResolver = packageAssemblyResolver ?? throw new ArgumentNullException(nameof(packageAssemblyResolver));
-            _assemblyReferenceReader = assemblyReferenceReader ?? throw new ArgumentNullException(nameof(assemblyReferenceReader));
+            _assemblyInformationReader = assemblyInformationReader ?? throw new ArgumentNullException(nameof(assemblyInformationReader));
         }
 
         /// <summary>
@@ -161,7 +161,7 @@ namespace PackageShading.Tasks
 
         private void AddAssembliesWithReferencesToUpdate(StrongNameKeyPair strongNameKeyPair, List<AssemblyToRename> assembliesToRename)
         {
-            Dictionary<string, List<(string AssemblyFullPath, AssemblyName AssemblyName)>> assemblyReferencesByAssemblyName = _assemblyReferenceReader.GetAssemblyReferences(References.Select(i => i.GetMetadata(ItemMetadataNames.FullPath)));
+            AssemblyInformation assemblyInformation = _assemblyInformationReader.GetAssemblyInformation(References.Select(i => i.GetMetadata(ItemMetadataNames.FullPath)));
 
             Stack<AssemblyToRename> stack = new Stack<AssemblyToRename>(assembliesToRename);
 
@@ -169,34 +169,36 @@ namespace PackageShading.Tasks
             {
                 AssemblyToRename value = stack.Pop();
 
-                if (!assemblyReferencesByAssemblyName.TryGetValue(value.AssemblyName.FullName, out List<(string AssemblyFullPath, AssemblyName AssemblyName)> assemblyReferences))
+                if (!assemblyInformation.AssemblyReferences.TryGetValue(value.AssemblyName.FullName, out List<AssemblyReference> assemblyReferences))
                 {
                     continue;
                 }
 
-                foreach ((string assemblyFullPath, AssemblyName assemblyName) in assemblyReferences)
+                foreach (AssemblyReference assemblyReference in assemblyReferences)
                 {
-                    if (!assemblyReferencesByAssemblyName.ContainsKey(assemblyName.FullName))
+                    if (!assemblyInformation.AssemblyReferences.ContainsKey(assemblyReference.Name.FullName))
                     {
                         continue;
                     }
 
-                    if (assembliesToRename.Any(i => string.Equals(i.AssemblyName.FullName, assemblyName.FullName)))
+                    if (assembliesToRename.Any(i => string.Equals(i.AssemblyName.FullName, assemblyReference.Name.FullName)))
                     {
                         continue;
                     }
 
-                    AssemblyToRename assemblyToRename = new AssemblyToRename(assemblyFullPath, assemblyName)
+                    using AssemblyDefinition assemblyDefinition = AssemblyDefinition.ReadAssembly(assemblyReference.FullPath);
+
+                    AssemblyToRename assemblyToRename = new AssemblyToRename(assemblyReference.FullPath, assemblyReference.Name)
                     {
-                        ShadedAssemblyName = new AssemblyNameDefinition(assemblyName.Name, assemblyName.Version)
+                        ShadedAssemblyName = new AssemblyNameDefinition(assemblyReference.Name.Name, assemblyReference.Name.Version)
                         {
-                            Culture = assemblyName.CultureName,
+                            Culture = assemblyReference.Name.CultureName,
                             PublicKey = strongNameKeyPair.PublicKey,
                         },
-                        ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", Path.GetFileName(assemblyFullPath)))
+                        ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", Path.GetFileName(assemblyReference.FullPath)))
                     };
 
-                    assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyName);
+                    assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyReference.FullPath);
                     assemblyToRename.ShadedInternalsVisibleTo = $"{assemblyToRename.ShadedAssemblyName.Name}, PublicKey={strongNameKeyPair.PublicKeyString}";
 
                     assembliesToRename.Add(assemblyToRename);
@@ -205,6 +207,51 @@ namespace PackageShading.Tasks
 
                     assembliesToRename.AddRange(GetResourceAssemblies(strongNameKeyPair, assemblyToRename));
                 }
+            }
+
+            List<AssemblyToRename> assembliesWithInternalsVisibleTo = new List<AssemblyToRename>();
+
+            HashSet<string> assembliesToUpdate = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (AssemblyToRename existingAssemblyToRename in assembliesToRename)
+            {
+                if (existingAssemblyToRename.InternalsVisibleTo != null && assemblyInformation.FriendAssemblies.TryGetValue(existingAssemblyToRename.InternalsVisibleTo, out List<AssemblyReference> friendAssemblies))
+                {
+                    foreach (AssemblyReference assemblyReference in friendAssemblies)
+                    {
+                        if (assembliesToRename.Any(i => i.AssemblyName.FullName.Equals(assemblyReference.Name.FullName)))
+                        {
+                            continue;
+                        }
+
+                        var assemblyName = AssemblyNameCache.GetAssemblyName(assemblyReference.FullPath);
+
+                        if (!assembliesToUpdate.Add(assemblyName.FullName))
+                        {
+                            continue;
+                        }
+
+                        AssemblyToRename assemblyToRename = new AssemblyToRename(assemblyReference.FullPath, assemblyName)
+                        {
+                            ShadedAssemblyName = new AssemblyNameDefinition(assemblyName.Name, assemblyName.Version)
+                            {
+                                Culture = assemblyName.CultureName,
+                                PublicKey = strongNameKeyPair.PublicKey,
+                            },
+                            ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", Path.GetFileName(assemblyReference.FullPath)))
+                        };
+
+                        assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyReference.FullPath);
+                        assemblyToRename.ShadedInternalsVisibleTo = $"{assemblyToRename.ShadedAssemblyName.Name}, PublicKey={strongNameKeyPair.PublicKeyString}";
+
+                        assembliesWithInternalsVisibleTo.Add(assemblyToRename);
+                    }
+                }
+            }
+
+            foreach (var item in assembliesWithInternalsVisibleTo)
+            {
+                assembliesToRename.Add(item);
             }
         }
 
@@ -245,7 +292,7 @@ namespace PackageShading.Tasks
                             PublicKey = strongNameKeyPair.PublicKey,
                         };
 
-                        assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyFile.Name);
+                        assemblyToRename.InternalsVisibleTo = InternalsVisibleToCache.GetInternalsVisibleTo(assemblyFile.Path);
                         assemblyToRename.ShadedInternalsVisibleTo = $"{assemblyToRename.ShadedAssemblyName.Name}, PublicKey={strongNameKeyPair.PublicKeyString}";
                         assemblyToRename.ShadedPath = Path.GetFullPath(Path.Combine(IntermediateOutputPath, "ShadedAssemblies", assemblyFile.Subdirectory ?? string.Empty, $"{assemblyName}.dll"));
 
@@ -297,7 +344,7 @@ namespace PackageShading.Tasks
                 {
                     continue;
                 }
-                
+
                 PackageIdentity packageIdentity = new PackageIdentity(packageReference.ItemSpec, GetPackageVersion(packageReference, packageVersions));
 
                 if (packages.TryGetValue(packageIdentity, out HashSet<PackageIdentity> dependencies))

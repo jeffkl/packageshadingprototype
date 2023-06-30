@@ -7,7 +7,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace PackageShading.Tasks
 {
@@ -44,7 +43,7 @@ namespace PackageShading.Tasks
 
             Dictionary<string, AssemblyName> newAssemblyNames = AssembliesToShade.ToDictionary(i => i.GetMetadata(ItemMetadataNames.AssemblyName), i => new AssemblyName(i.GetMetadata(ItemMetadataNames.ShadedAssemblyName)), StringComparer.OrdinalIgnoreCase);
 
-            Dictionary<string, string> internalsVisibleTo = AssembliesToShade.ToDictionary(i => i.GetMetadata(ItemMetadataNames.InternalsVisibleTo), i => i.GetMetadata(ItemMetadataNames.ShadedInternalsVisibleTo), StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> internalsVisibleTo = GetInternalsVisibleTo();
 
             foreach (ITaskItem assemblyToShade in AssembliesToShade)
             {
@@ -53,64 +52,112 @@ namespace PackageShading.Tasks
 
                 AssemblyName shadedAssemblyName = new AssemblyName(assemblyToShade.GetMetadata(ItemMetadataNames.ShadedAssemblyName));
 
-                using (AssemblyDefinition assembly = ReadAssembly(assemblyPath))
+                using (DefaultAssemblyResolver resolver = new DefaultAssemblyResolver())
                 {
-                    string previousAssemblyName = assembly.Name.FullName;
+                    resolver.AddSearchDirectory(assemblyPath.DirectoryName);
 
-                    Directory.CreateDirectory(shadedAssemblyPath.DirectoryName);
+                    bool symbolsExist = File.Exists(Path.ChangeExtension(assemblyPath.FullName, ".pdb"));
 
-                    assembly.MainModule.TryGetTypeReference(typeof(InternalsVisibleToAttribute).FullName, out TypeReference internalsVisibleToTypeReference);
-
-                    foreach (CustomAttribute internalsVisibleToAttribute in assembly.CustomAttributes.Where(i => i.AttributeType == internalsVisibleToTypeReference))
+                    using (AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(assemblyPath.FullName, new ReaderParameters
                     {
-                        if (internalsVisibleTo.TryGetValue(internalsVisibleToAttribute.ConstructorArguments[0].Value as string, out string value))
-                        {
-                            CustomAttributeArgument argument = new CustomAttributeArgument(internalsVisibleToAttribute.ConstructorArguments[0].Type, value);
+                        AssemblyResolver = resolver,
+                        ReadSymbols = File.Exists(Path.ChangeExtension(assemblyPath.FullName, ".pdb"))
+                    }))
+                    {
+                        string previousAssemblyName = assembly.Name.FullName;
 
-                            internalsVisibleToAttribute.ConstructorArguments.RemoveAt(0);
-                            internalsVisibleToAttribute.ConstructorArguments.Add(argument);
+                        Directory.CreateDirectory(shadedAssemblyPath.DirectoryName);
+
+                        List<CustomAttribute> newAttributes = new List<CustomAttribute>(assembly.CustomAttributes.Count);
+
+                        assembly.Name.Name = shadedAssemblyName.Name;
+
+                        assembly.MainModule.Attributes &= ~ModuleAttributes.StrongNameSigned;
+
+                        Log.LogMessageFromText($"Shading assembly {assemblyPath.FullName} => {shadedAssemblyPath.FullName}", MessageImportance.Normal);
+                        Log.LogMessageFromText($"  Name: {previousAssemblyName} => {shadedAssemblyName.FullName}", MessageImportance.Normal);
+
+                        foreach (AssemblyNameReference assemblyReference in assembly.MainModule.AssemblyReferences)
+                        {
+                            if (newAssemblyNames.TryGetValue(assemblyReference.FullName, out AssemblyName shadedReferenceAssemblyName))
+                            {
+                                Log.LogMessageFromText($"  Reference: {assemblyReference.FullName} -> {shadedReferenceAssemblyName.FullName}", MessageImportance.Normal);
+
+                                assemblyReference.Name = shadedReferenceAssemblyName.Name;
+                                assemblyReference.PublicKeyToken = strongNameKeyPair.PublicKeyToken;
+                            }
                         }
 
-                    }
-
-                    assembly.Name.Name = shadedAssemblyName.Name;
-
-                    assembly.MainModule.Attributes &= ~ModuleAttributes.StrongNameSigned;
-
-                    Log.LogMessageFromText($"Shading assembly {assemblyPath.FullName} => {shadedAssemblyPath.FullName}", MessageImportance.Normal);
-                    Log.LogMessageFromText($"  Name: {previousAssemblyName} => {shadedAssemblyName.FullName}", MessageImportance.Normal);
-
-                    foreach (AssemblyNameReference assemblyReference in assembly.MainModule.AssemblyReferences)
-                    {
-                        if (newAssemblyNames.TryGetValue(assemblyReference.FullName, out AssemblyName shadedReferenceAssemblyName))
+                        foreach (CustomAttribute customAttribute in assembly.CustomAttributes)
                         {
-                            Log.LogMessageFromText($"  Reference: {assemblyReference.FullName} -> {shadedReferenceAssemblyName.FullName}", MessageImportance.Normal);
+                            switch (customAttribute.AttributeType.FullName)
+                            {
+                                case "System.Runtime.CompilerServices.InternalsVisibleToAttribute":
+                                    if (internalsVisibleTo.TryGetValue(customAttribute.ConstructorArguments[0].Value as string, out string value))
+                                    {
+                                        Log.LogMessageFromText($"  InternalsVisibleTo: {value}", MessageImportance.Normal);
 
-                            assemblyReference.Name = shadedReferenceAssemblyName.Name;
-                            assemblyReference.PublicKeyToken = strongNameKeyPair.PublicKeyToken;
+                                        CustomAttribute attribute = new CustomAttribute(customAttribute.Constructor);
+                                        attribute.ConstructorArguments.Add(new CustomAttributeArgument(customAttribute.ConstructorArguments[0].Type, value));
+                                        newAttributes.Add(attribute);
+                                    }
+                                    break;
+
+                                case "System.Runtime.Versioning.TargetFrameworkAttribute":
+                                    if (DotNetAssemblyResolver.TryGetReferenceAssemblyPath(customAttribute.ConstructorArguments[0].Value as string, out string referenceAssemblyDirectory))
+                                    {
+                                        resolver.AddSearchDirectory(referenceAssemblyDirectory);
+                                    }
+                                    break;
+                            }
+                        }
+
+                        foreach (CustomAttribute item in newAttributes)
+                        {
+                            assembly.CustomAttributes.Add(item);
+                        }
+
+                        try
+                        {
+                            assembly.Write(
+                                shadedAssemblyPath.FullName,
+                                new WriterParameters
+                                {
+                                    StrongNameKeyBlob = strongNameKeyPair.KeyPair,
+                                    WriteSymbols = symbolsExist,
+                                });
+                        }
+                        catch (Exception e)
+                        {
+                            Log.LogError("Failed to write assembly '{0}'", shadedAssemblyPath.FullName);
+
+                            Log.LogErrorFromException(e);
                         }
                     }
-
-                    assembly.Write(shadedAssemblyPath.FullName, strongNameKeyPair.WriterParameters);
                 }
 
                 AssemblyName _ = AssemblyName.GetAssemblyName(shadedAssemblyPath.FullName);
             }
-            
+
             return !Log.HasLoggedErrors;
         }
 
-        private AssemblyDefinition ReadAssembly(FileInfo assemblyPath)
+        private Dictionary<string, string> GetInternalsVisibleTo()
         {
-            using DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
+            Dictionary<string, string> internalsVisibleToDictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            resolver.AddSearchDirectory(assemblyPath.DirectoryName);
-
-            return AssemblyDefinition.ReadAssembly(assemblyPath.FullName, new ReaderParameters
+            foreach (ITaskItem assemblyToShadeItem in AssembliesToShade)
             {
-                AssemblyResolver = resolver,
-                ReadSymbols = File.Exists(Path.ChangeExtension(assemblyPath.FullName, ".pdb"))
-            });
+                string internalsVisibleTo = assemblyToShadeItem.GetMetadata(ItemMetadataNames.InternalsVisibleTo);
+                string shadedInternsVisibleTo = assemblyToShadeItem.GetMetadata(ItemMetadataNames.ShadedInternalsVisibleTo);
+
+                if (!string.IsNullOrWhiteSpace(internalsVisibleTo) && !string.IsNullOrWhiteSpace(shadedInternsVisibleTo))
+                {
+                    internalsVisibleToDictionary.Add(internalsVisibleTo, shadedInternsVisibleTo);
+                }
+            }
+
+            return internalsVisibleToDictionary;
         }
     }
 }
