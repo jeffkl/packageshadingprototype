@@ -1,4 +1,8 @@
 # Package Shading Prototype
+
+
+## Shading Transitive Dependencies
+
 This package includes build logic to rename assemblies in your dependency graph that would otherwise be unified by the .NET SDK.  Consider the following project's dependency graph:
 
 ```xml
@@ -37,6 +41,14 @@ Now the output folder has both `PackageZ.dll` which is version `2.0.0.0` and `Pa
 `PackageA.dll` was also updated to reference `PackageZ.1.0.0.0.dll` instead of `PackageZ.dll`.
 
 ![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/4212b728-da51-4456-bf29-49db3aa55217)
+
+## Shading Entire Packages
+If you wish to shade all of the assemblies in a particular package and its transitive dependencies, you can use the `Shade` property:
+```xml
+<ItemGroup>
+  <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" Shade="true" />
+</ItemGroup>
+```
 
 ## Limitations
 Assembly shading can be a great way to fix runtime issues with dependencies, but it does have some limitations.
