@@ -50,6 +50,11 @@ If you wish to shade all of the assemblies in a particular package and its trans
 </ItemGroup>
 ```
 
+![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/b4322d58-280e-4af4-85e0-402f3240e137)
+
+![image](https://github.com/jeffkl/packageshadingprototype/assets/17556515/87d89a98-3918-49a2-af97-9c7952f8f184)
+
+
 ## Limitations
 Assembly shading can be a great way to fix runtime issues with dependencies, but it does have some limitations.
 
