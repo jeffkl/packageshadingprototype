@@ -339,13 +339,20 @@ namespace PackageShading.Tasks
             foreach (ITaskItem packageReference in PackageReferences)
             {
                 string shadeDependencies = packageReference.GetMetadata(ItemMetadataNames.ShadeDependencies);
+                string shade = packageReference.GetMetadata(ItemMetadataNames.Shade);
 
-                if (string.IsNullOrWhiteSpace(shadeDependencies))
+                if (string.IsNullOrWhiteSpace(shadeDependencies) && string.IsNullOrWhiteSpace(shade))
                 {
                     continue;
                 }
 
                 PackageIdentity packageIdentity = new PackageIdentity(packageReference.ItemSpec, GetPackageVersion(packageReference, packageVersions));
+
+                if (string.Equals(shade, bool.TrueString, StringComparison.OrdinalIgnoreCase))
+                {
+                    packagesToShade.Add(packageIdentity);
+                    continue;
+                }
 
                 if (packages.TryGetValue(packageIdentity, out HashSet<PackageIdentity> dependencies))
                 {

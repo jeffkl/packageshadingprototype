@@ -36,6 +36,11 @@
         public const string OriginalPath = nameof(OriginalPath);
 
         /// <summary>
+        /// Whether or not to shade the package.
+        /// </summary>
+        public const string Shade = nameof(Shade);
+
+        /// <summary>
         /// The shaded assembly name.
         /// </summary>
         public const string ShadedAssemblyName = nameof(ShadedAssemblyName);
