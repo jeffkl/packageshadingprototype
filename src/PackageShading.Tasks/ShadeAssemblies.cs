@@ -153,7 +153,7 @@ namespace PackageShading.Tasks
 
                 if (!string.IsNullOrWhiteSpace(internalsVisibleTo) && !string.IsNullOrWhiteSpace(shadedInternsVisibleTo))
                 {
-                    internalsVisibleToDictionary.Add(internalsVisibleTo, shadedInternsVisibleTo);
+                    internalsVisibleToDictionary[internalsVisibleTo] = shadedInternsVisibleTo;
                 }
             }
 
