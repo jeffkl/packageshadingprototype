@@ -167,7 +167,7 @@ namespace PackageShading.Tasks
                 return !Log.HasLoggedErrors;
             }
 
-            List<AssemblyToRename> assembliesToRename = GetAssembliesToShadeForPackages(strongNameKeyPair, packagesToShade);
+            List<AssemblyToRename> assembliesToRename = GetAssembliesToShadeForPackages(strongNameKeyPair, packagesToShade, assetsFileLazy.Value);
 
             if (!assembliesToRename.Any())
             {
@@ -277,7 +277,7 @@ namespace PackageShading.Tasks
             }
         }
 
-        private List<AssemblyToRename> GetAssembliesToShadeForPackages(StrongNameKeyPair strongNameKeyPair, HashSet<PackageIdentity> packagesToShade)
+        private List<AssemblyToRename> GetAssembliesToShadeForPackages(StrongNameKeyPair strongNameKeyPair, HashSet<PackageIdentity> packagesToShade, NuGetAssetsFile assetsFile)
         {
             HashSet<string> assemblyNames = new HashSet<string>();
 
@@ -291,7 +291,25 @@ namespace PackageShading.Tasks
 
                     if (assemblyFiles == null)
                     {
-                        continue;
+                        KeyValuePair<string, PackageIdentity> projectReference = assetsFile.ProjectReferences.FirstOrDefault(i => i.Value.Equals(packageToShade));
+
+                        if (projectReference.Key is null)
+                        {
+                            continue;
+                        }
+                        ITaskItem projectReferenceItem = References.FirstOrDefault(i => string.Equals(i.GetMetadata("MSBuildSourceProjectFile"), projectReference.Key));
+
+                        if (projectReferenceItem == null)
+                        {
+                            continue;
+                        }
+
+                        string assemblyPath = projectReferenceItem.GetMetadata("FullPath");
+
+                        assemblyFiles = new List<(string Path, string Subdirectory, AssemblyName Name)>(capacity: 1)
+                            {
+                                (Path: assemblyPath, Subdirectory: string.Empty, Name: AssemblyNameCache.GetAssemblyName(assemblyPath))
+                            };
                     }
 
                     foreach ((string Path, string Subdirectory, AssemblyName Name) assemblyFile in assemblyFiles)
@@ -417,7 +435,7 @@ namespace PackageShading.Tasks
                     {
                         if (shadeDependencies == "*")
                         {
-                            foreach(var item in dependencies)
+                            foreach (var item in dependencies)
                             {
                                 packagesToShade.Add(item);
                             }
