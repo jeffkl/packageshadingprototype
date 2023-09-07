@@ -2,17 +2,16 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace PackageShading.Tasks
 {
-    /// <inheritdoc />
     internal class NuGetAssetFileLoader : INuGetAssetFileLoader
     {
-        /// <inheritdoc />
-        public Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>> LoadAssetsFile(string projectAssetsFile)
+        public NuGetAssetsFile LoadAssetsFile(string projectDirectory, string projectAssetsFile)
         {
-            Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>> packagesByTargetFramework = new Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>(StringComparer.OrdinalIgnoreCase);
+            NuGetAssetsFile assetsFile = new NuGetAssetsFile();
 
             JsonDocumentOptions options = new JsonDocumentOptions
             {
@@ -25,7 +24,9 @@ namespace PackageShading.Tasks
                 {
                     foreach (JsonProperty targetFramework in json.RootElement.GetProperty("targets").EnumerateObject())
                     {
-                        Dictionary<PackageIdentity, HashSet<PackageIdentity>> packages = new Dictionary<PackageIdentity, HashSet<PackageIdentity>>();
+                        NuGetAssetsFileSection nuGetAssetsFileSection = new NuGetAssetsFileSection();
+
+                        Dictionary<PackageIdentity, HashSet<PackageIdentity>> packages = nuGetAssetsFileSection.Packages;
 
                         if (targetFramework.Value.ValueKind == JsonValueKind.Undefined)
                         {
@@ -96,12 +97,35 @@ namespace PackageShading.Tasks
                         }
                         while (added);
 
-                        packagesByTargetFramework[targetFramework.Name] = packages;
+                        assetsFile[targetFramework.Name] = nuGetAssetsFileSection;
+                    }
+
+                    foreach (JsonProperty library in json.RootElement.GetProperty("libraries").EnumerateObject())
+                    {
+                        if (!library.Value.TryGetProperty("type", out JsonElement type) || !string.Equals(type.GetString(), "project") || !library.Value.TryGetProperty("path", out JsonElement path))
+                        {
+                            continue;
+                        }
+
+                        string[] libraryDetails = library.Name.Split('/');
+
+                        PackageIdentity packageIdentity = new PackageIdentity(libraryDetails[0], libraryDetails[1]);
+
+                        string relativePath = path.GetString();
+
+                        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        {
+                            relativePath = relativePath.Replace('/', '\\');
+                        }
+
+                        FileInfo projectFileInfo = new FileInfo(Path.Combine(projectDirectory, relativePath));
+
+                        assetsFile.ProjectReferences[projectFileInfo.FullName] = packageIdentity;
                     }
                 }
             }
 
-            return packagesByTargetFramework;
+            return assetsFile;
         }
     }
 }

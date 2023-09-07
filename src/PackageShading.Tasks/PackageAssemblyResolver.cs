@@ -15,6 +15,11 @@ namespace PackageShading.Tasks
         {
             string path = Path.Combine(nuGetPackageRoot, packageIdentity.Id.ToLower(), packageIdentity.Version.ToLower(), "lib");
 
+            if (!Directory.Exists(path))
+            {
+                return null;
+            }
+
             IEnumerable<string> targetFrameworksToCheck = new List<string> { targetFramework }.Concat(fallbackTargetFrameworks == null ? Array.Empty<string>() : fallbackTargetFrameworks);
 
             List<DirectoryInfo> compatibleTargetFrameworks = Directory.EnumerateDirectories(path).Select(i => new DirectoryInfo(i)).ToList();
