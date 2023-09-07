@@ -16,7 +16,7 @@ namespace PackageShading.Tasks
     /// </summary>
     public sealed class GetAssembliesToShade : Task
     {
-        private static readonly ConcurrentDictionary<string, Lazy<Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>>> AssetsFileCache = new ConcurrentDictionary<string, Lazy<Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>>>(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, Lazy<NuGetAssetsFile>> AssetsFileCache = new ConcurrentDictionary<string, Lazy<NuGetAssetsFile>>(StringComparer.OrdinalIgnoreCase);
         private static readonly char[] SplitChars = new[] { ';', ',' };
         private readonly IAssemblyInformationReader _assemblyInformationReader;
         private readonly INuGetAssetFileLoader _nuGetAssetFileLoader;
@@ -80,6 +80,28 @@ namespace PackageShading.Tasks
         public string ProjectAssetsFile { get; set; }
 
         /// <summary>
+        /// Gets or sets the full path to the project directory.
+        /// </summary>
+        public string ProjectDirectory { get; set; }
+
+        /// <summary>
+        /// Gets or sets an array of <see cref="ITaskItem" /> objects representing the project references.
+        /// </summary>
+        public ITaskItem[] ProjectReferences { get; set; }
+
+        /// <summary>
+        /// Gets or sets an array of <see cref="ITaskItem" /> objects representing the project references to add.
+        /// </summary>
+        [Output]
+        public ITaskItem[] ProjectReferencesToAdd { get; set; }
+
+        /// <summary>
+        /// Gets or sets an array of <see cref="ITaskItem" /> objects representing the project references to remove.
+        /// </summary>
+        [Output]
+        public ITaskItem[] ProjectReferencesToRemove { get; set; }
+
+        /// <summary>
         /// Gets or sets an array of <see cref="ITaskItem" /> objects representing the reference assemblies.
         /// </summary>
         [Required]
@@ -124,21 +146,21 @@ namespace PackageShading.Tasks
 
             StrongNameKeyPair strongNameKeyPair = new StrongNameKeyPair(ShadedAssemblyKeyFile);
 
-            Lazy<Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>> assetsFileLazy = AssetsFileCache.GetOrAdd(ProjectAssetsFile, assetsFile => new Lazy<Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>>>(() => _nuGetAssetFileLoader.LoadAssetsFile(assetsFile)));
+            Lazy<NuGetAssetsFile> assetsFileLazy = AssetsFileCache.GetOrAdd(ProjectAssetsFile, assetsFile => new Lazy<NuGetAssetsFile>(() => _nuGetAssetFileLoader.LoadAssetsFile(ProjectDirectory, assetsFile)));
 
-            Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>> packagesByTargetFramework = assetsFileLazy.Value;
+            NuGetAssetsFile packagesByTargetFramework = assetsFileLazy.Value;
 
             if (packagesByTargetFramework == null)
             {
                 return !Log.HasLoggedErrors;
             }
 
-            if (!packagesByTargetFramework.TryGetValue(TargetFramework, out Dictionary<PackageIdentity, HashSet<PackageIdentity>> packages) && !packagesByTargetFramework.TryGetValue(TargetFrameworkMoniker, out packages))
+            if (!packagesByTargetFramework.TryGetValue(TargetFramework, out NuGetAssetsFileSection section) && !packagesByTargetFramework.TryGetValue(TargetFrameworkMoniker, out section))
             {
                 return !Log.HasLoggedErrors;
             }
 
-            HashSet<PackageIdentity> packagesToShade = GetPackagesToShade(packages);
+            HashSet<PackageIdentity> packagesToShade = GetPackagesToShade(assetsFileLazy.Value, section);
 
             if (!packagesToShade.Any())
             {
@@ -330,7 +352,7 @@ namespace PackageShading.Tasks
             return existingReferenceItems;
         }
 
-        private HashSet<PackageIdentity> GetPackagesToShade(Dictionary<PackageIdentity, HashSet<PackageIdentity>> packages)
+        private HashSet<PackageIdentity> GetPackagesToShade(NuGetAssetsFile assetsFile, NuGetAssetsFileSection assetsFileSection)
         {
             HashSet<PackageIdentity> packagesToShade = new HashSet<PackageIdentity>();
 
@@ -341,7 +363,7 @@ namespace PackageShading.Tasks
                 string shadeDependencies = packageReference.GetMetadata(ItemMetadataNames.ShadeDependencies);
                 string shade = packageReference.GetMetadata(ItemMetadataNames.Shade);
 
-                if (string.IsNullOrWhiteSpace(shadeDependencies) && string.IsNullOrWhiteSpace(shade))
+                if (string.IsNullOrWhiteSpace(shade) && string.IsNullOrWhiteSpace(shadeDependencies))
                 {
                     continue;
                 }
@@ -351,34 +373,63 @@ namespace PackageShading.Tasks
                 if (string.Equals(shade, bool.TrueString, StringComparison.OrdinalIgnoreCase))
                 {
                     packagesToShade.Add(packageIdentity);
-                    continue;
                 }
 
-                if (packages.TryGetValue(packageIdentity, out HashSet<PackageIdentity> dependencies))
+                if (!string.IsNullOrWhiteSpace(shadeDependencies))
                 {
-                    foreach (string shadeDependency in shadeDependencies.Split(SplitChars, StringSplitOptions.RemoveEmptyEntries))
+                    if (assetsFileSection.Packages.TryGetValue(packageIdentity, out HashSet<PackageIdentity> dependencies))
                     {
-                        PackageIdentity packageToShade = dependencies.FirstOrDefault(i => string.Equals(i.Id, shadeDependency, StringComparison.OrdinalIgnoreCase));
+                        foreach (string shadeDependency in shadeDependencies.Split(SplitChars, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            PackageIdentity packageToShade = dependencies.FirstOrDefault(i => string.Equals(i.Id, shadeDependency, StringComparison.OrdinalIgnoreCase));
 
-                        packagesToShade.Add(packageToShade);
+                            packagesToShade.Add(packageToShade);
+                        }
                     }
                 }
             }
 
-            Stack<PackageIdentity> packagesStack = new Stack<PackageIdentity>(packagesToShade);
-
-            while (packagesStack.Any())
+            foreach (ITaskItem packageReference in ProjectReferences)
             {
-                PackageIdentity packageToShade = packagesStack.Pop();
+                string shadeDependencies = packageReference.GetMetadata(ItemMetadataNames.ShadeDependencies);
+                string shade = packageReference.GetMetadata(ItemMetadataNames.Shade);
 
-                if (packages.TryGetValue(packageToShade, out HashSet<PackageIdentity> dependencies))
+                if (string.IsNullOrWhiteSpace(shade) && string.IsNullOrWhiteSpace(shadeDependencies))
                 {
-                    foreach (PackageIdentity dependency in dependencies)
+                    continue;
+                }
+
+                string fullPath = packageReference.GetMetadata("FullPath");
+
+                if (!assetsFile.ProjectReferences.TryGetValue(fullPath, out PackageIdentity packageIdentity))
+                {
+                    continue;
+                }
+
+                if (string.Equals(shade, bool.TrueString, StringComparison.OrdinalIgnoreCase))
+                {
+                    packagesToShade.Add(packageIdentity);
+                }
+
+                if (!string.IsNullOrWhiteSpace(shadeDependencies))
+                {
+                    if (assetsFileSection.Packages.TryGetValue(packageIdentity, out HashSet<PackageIdentity> dependencies))
                     {
-                        if (!packagesToShade.Contains(dependency))
+                        if (shadeDependencies == "*")
                         {
-                            packagesToShade.Add(dependency);
-                            packagesStack.Push(dependency);
+                            foreach(var item in dependencies)
+                            {
+                                packagesToShade.Add(item);
+                            }
+                        }
+                        else
+                        {
+                            foreach (string shadeDependency in shadeDependencies.Split(SplitChars, StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                PackageIdentity packageToShade = dependencies.FirstOrDefault(i => string.Equals(i.Id, shadeDependency, StringComparison.OrdinalIgnoreCase));
+
+                                packagesToShade.Add(packageToShade);
+                            }
                         }
                     }
                 }
@@ -446,6 +497,8 @@ namespace PackageShading.Tasks
             List<ITaskItem> assembliesToShade = new List<ITaskItem>(assembliesToRename.Count);
             List<ITaskItem> referencesToRemove = new List<ITaskItem>(assembliesToRename.Count);
             List<ITaskItem> referencesToAdd = new List<ITaskItem>(assembliesToRename.Count);
+            List<ITaskItem> projectReferencesToAdd = new List<ITaskItem>(assembliesToRename.Count);
+            List<ITaskItem> projectReferencesToRemove = new List<ITaskItem>(assembliesToRename.Count);
 
             Dictionary<string, List<ITaskItem>> existingReferenceItems = GetItemsByAssemblyName(References);
 
@@ -463,19 +516,50 @@ namespace PackageShading.Tasks
 
                 if (existingReferenceItems.TryGetValue(assemblyToRename.AssemblyName.FullName, out List<ITaskItem> existingReferenceItemsForAssembly))
                 {
+                    bool isProjectReference = false;
+
                     foreach (ITaskItem existingReferenceItemForAssembly in existingReferenceItemsForAssembly)
                     {
+                        if (string.Equals(existingReferenceItemForAssembly.GetMetadata("ReferenceSourceTarget"), "ProjectReference", StringComparison.OrdinalIgnoreCase))
+                        {
+                            isProjectReference = true;
+
+                            TaskItem projectReferenceToRemove = new TaskItem(existingReferenceItemForAssembly.ItemSpec);
+
+                            projectReferencesToRemove.Add(projectReferenceToRemove);
+
+                            continue;
+                        }
+
                         TaskItem referenceToRemove = new TaskItem(existingReferenceItemForAssembly.ItemSpec);
 
                         referencesToRemove.Add(referenceToRemove);
                     }
 
-                    TaskItem referenceToAdd = new TaskItem(assemblyToRename.ShadedPath, existingReferenceItemsForAssembly.First().CloneCustomMetadata());
+                    if (isProjectReference)
+                    {
+                        TaskItem projectReferenceToAdd = new TaskItem(assemblyToRename.ShadedPath, existingReferenceItemsForAssembly.First().CloneCustomMetadata());
+
+                        projectReferencesToAdd.Add(projectReferenceToAdd);
+                    }
+                    else
+                    {
+                        TaskItem referenceToAdd = new TaskItem(assemblyToRename.ShadedPath, existingReferenceItemsForAssembly.First().CloneCustomMetadata());
+
+                        referenceToAdd.SetMetadata(ItemMetadataNames.HintPath, assemblyToRename.ShadedPath);
+                        referenceToAdd.SetMetadata(ItemMetadataNames.OriginalPath, assemblyToRename.FullPath);
+
+                        referencesToAdd.Add(referenceToAdd);
+                    }
+                }
+                else
+                {
+                    TaskItem referenceToAdd = new TaskItem(assemblyToRename.ShadedPath);
 
                     referenceToAdd.SetMetadata(ItemMetadataNames.HintPath, assemblyToRename.ShadedPath);
                     referenceToAdd.SetMetadata(ItemMetadataNames.OriginalPath, assemblyToRename.FullPath);
 
-                    referencesToAdd.Add(referenceToAdd);
+                    //referencesToAdd.Add(referenceToAdd);
                 }
 
                 assembliesToShade.Add(assemblyToShade);
@@ -484,6 +568,8 @@ namespace PackageShading.Tasks
             AssembliesToShade = assembliesToShade.ToArray();
             ReferencesToAdd = referencesToAdd.ToArray();
             ReferencesToRemove = referencesToRemove.ToArray();
+            ProjectReferencesToAdd = projectReferencesToAdd.ToArray();
+            ProjectReferencesToRemove = projectReferencesToRemove.ToArray();
         }
     }
 }

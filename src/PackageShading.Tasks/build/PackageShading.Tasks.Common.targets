@@ -8,7 +8,7 @@
   </PropertyGroup>
   
   <Target Name="GetAssembliesToShade"
-          DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn)"
+          DependsOnTargets="$(ResolveAssemblyReferencesDependsOn)"
           Returns="@(_AssembliesToShade)">
     <GetAssembliesToShade Debug="$(DebugShadeAssemblies)"
                           FallbackTargetFrameworks="$(AssetTargetFallback)"
@@ -17,7 +17,9 @@
                           PackageReferences="@(PackageReference)"
                           PackageVersions="@(PackageVersion)"
                           ProjectAssetsFile="$(ProjectAssetsFile)"
-                          References="@(Reference)"
+                          ProjectDirectory="$(MSBuildProjectDirectory)"
+                          ProjectReferences="@(ProjectReference)"
+                          References="@(Reference);@(_ResolvedProjectReferencePaths)"
                           ShadedAssemblyKeyFile="$(ShadedAssemblyKeyFile)"
                           TargetFramework="$(TargetFramework)"
                           TargetFrameworkMoniker="$(TargetFrameworkMoniker)">
@@ -25,6 +27,8 @@
       <Output TaskParameter="AssembliesToShade" ItemName="FileWrites" />
       <Output TaskParameter="ReferencesToRemove" ItemName="_ReferencesToRemove" />
       <Output TaskParameter="ReferencesToAdd" ItemName="_ReferencesToAdd" />
+      <Output TaskParameter="ProjectReferencesToRemove" ItemName="_ProjectReferencesToRemove" />
+      <Output TaskParameter="ProjectReferencesToAdd" ItemName="_ProjectReferencesToAdd" />
     </GetAssembliesToShade>
 
     <ItemGroup>
@@ -33,6 +37,9 @@
       
       <Reference Remove="@(_ReferencesToRemove)" />
       <Reference Include="@(_ReferencesToAdd)" />
+
+      <_ResolvedProjectReferencePaths Remove="@(_ProjectReferencesToRemove)" />
+      <_ResolvedProjectReferencePaths Include="@(_ProjectReferencesToAdd)" />
       
       <TfmSpecificPackageFile Include="@(_AssembliesToShade)"
                               Pack="true"
@@ -42,8 +49,8 @@
   </Target>
 
   <Target Name="ShadeAssemblies"
-          DependsOnTargets="$(ResolvePackageDependenciesForBuildDependsOn);GetAssembliesToShade"
-          AfterTargets="ResolvePackageDependenciesForBuild"
+          DependsOnTargets="$(ResolveAssemblyReferencesDependsOn);GetAssembliesToShade"
+          BeforeTargets="ResolveAssemblyReferences"
           Inputs="@(_AssembliesToShade->'%(OriginalPath)');$(MSBuildAllProjects)"
           Outputs="@(_AssembliesToShade)"
           Condition="'$(DesignTimeBuild)' != 'true' And '$(ShadeAssemblies)' != 'false'">

@@ -8,6 +8,14 @@ namespace PackageShading.Tasks.UnitTests
     public class NuGetAssetFileLoaderTests : TestBase
     {
         [Fact]
+        public void Test1()
+        {
+            INuGetAssetFileLoader nuGetAssetFileLoader = new NuGetAssetFileLoader();
+
+            NuGetAssetsFile p = nuGetAssetFileLoader.LoadAssetsFile(@"D:\Repros\azure-functions-dotnet-worker\extensions\Worker.Extensions.ServiceBus\Worker.Extensions.ServiceBus.csproj", @"D:\Repros\azure-functions-dotnet-worker\extensions\Worker.Extensions.ServiceBus\src\obj\project.assets.json");
+        }
+
+        [Fact]
         public void TransitiveDependenciesAreCorrectlyLoaded()
         {
             string projectAssetsFile = Path.Combine(TestDirectory, "project.assets.json");
@@ -226,7 +234,7 @@ namespace PackageShading.Tasks.UnitTests
 
             INuGetAssetFileLoader nuGetAssetFileLoader = new NuGetAssetFileLoader();
 
-            Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>> assetsFile = nuGetAssetFileLoader.LoadAssetsFile(projectAssetsFile);
+            var assetsFile = nuGetAssetFileLoader.LoadAssetsFile(string.Empty, projectAssetsFile);
 
             assetsFile.Keys.ShouldBe(new[]
             {
@@ -244,9 +252,9 @@ namespace PackageShading.Tasks.UnitTests
             PackageIdentity packageNuGetFrameworks = new PackageIdentity("NuGet.Frameworks", "5.11.0");
             PackageIdentity packageSystemReflectionMetadata = new PackageIdentity("System.Reflection.Metadata", "1.6.0");
 
-            Dictionary<PackageIdentity, HashSet<PackageIdentity>> net472Packages = assetsFile[".NETFramework,Version=v4.7.2"];
+            NuGetAssetsFileSection net472Section = assetsFile[".NETFramework,Version=v4.7.2"];
 
-            net472Packages.Keys.ShouldBe(new[]
+            net472Section.Packages.Keys.ShouldBe(new[]
             {
                 packageMicrosoftCodeCoverage,
                 packageMicrosoftNETTestSdk,
@@ -254,23 +262,23 @@ namespace PackageShading.Tasks.UnitTests
                 packageNewtonsoftJsonBson
             });
 
-            net472Packages[packageMicrosoftCodeCoverage].ShouldBe(new HashSet<PackageIdentity>());
+            net472Section.Packages[packageMicrosoftCodeCoverage].ShouldBe(new HashSet<PackageIdentity>());
 
-            net472Packages[packageMicrosoftNETTestSdk].ShouldBe(new HashSet<PackageIdentity>
+            net472Section.Packages[packageMicrosoftNETTestSdk].ShouldBe(new HashSet<PackageIdentity>
             {
                 packageMicrosoftCodeCoverage
             });
 
-            net472Packages[packageNewtonsoftJson12].ShouldBe(new HashSet<PackageIdentity>());
+            net472Section.Packages[packageNewtonsoftJson12].ShouldBe(new HashSet<PackageIdentity>());
 
-            net472Packages[packageNewtonsoftJsonBson].ShouldBe(new HashSet<PackageIdentity>
+            net472Section.Packages[packageNewtonsoftJsonBson].ShouldBe(new HashSet<PackageIdentity>
             {
                 packageNewtonsoftJson12
             });
 
-            Dictionary<PackageIdentity, HashSet<PackageIdentity>> net60Packages = assetsFile["net6.0"];
+            var net60Section = assetsFile["net6.0"];
 
-            net60Packages.Keys.ShouldBe(new[]
+            net60Section.Packages.Keys.ShouldBe(new[]
             {
                 packageMicrosoftCodeCoverage,
                 packageMicrosoftNETTestSdk,
@@ -282,9 +290,9 @@ namespace PackageShading.Tasks.UnitTests
                 packageSystemReflectionMetadata
             });
 
-            net60Packages[packageMicrosoftCodeCoverage].ShouldBe(new HashSet<PackageIdentity>());
+            net60Section.Packages[packageMicrosoftCodeCoverage].ShouldBe(new HashSet<PackageIdentity>());
 
-            net60Packages[packageMicrosoftNETTestSdk].ShouldBe(new HashSet<PackageIdentity>
+            net60Section.Packages[packageMicrosoftNETTestSdk].ShouldBe(new HashSet<PackageIdentity>
             {
                 packageMicrosoftCodeCoverage,
                 packageMicrosoftTestPlatformTestHost,
@@ -294,13 +302,13 @@ namespace PackageShading.Tasks.UnitTests
                 packageSystemReflectionMetadata
             });
 
-            net60Packages[packageMicrosoftTestPlatformObjectModel].ShouldBe(new HashSet<PackageIdentity>
+            net60Section.Packages[packageMicrosoftTestPlatformObjectModel].ShouldBe(new HashSet<PackageIdentity>
             {
                 packageNuGetFrameworks,
                 packageSystemReflectionMetadata
             });
 
-            net60Packages[packageMicrosoftTestPlatformTestHost].ShouldBe(new HashSet<PackageIdentity>
+            net60Section.Packages[packageMicrosoftTestPlatformTestHost].ShouldBe(new HashSet<PackageIdentity>
             {
                 packageMicrosoftTestPlatformObjectModel,
                 packageNewtonsoftJson9,
@@ -308,16 +316,16 @@ namespace PackageShading.Tasks.UnitTests
                 packageSystemReflectionMetadata
             });
 
-            net60Packages[packageNewtonsoftJson12].ShouldBe(new HashSet<PackageIdentity>());
+            net60Section.Packages[packageNewtonsoftJson12].ShouldBe(new HashSet<PackageIdentity>());
 
-            net60Packages[packageNewtonsoftJsonBson].ShouldBe(new HashSet<PackageIdentity>
+            net60Section.Packages[packageNewtonsoftJsonBson].ShouldBe(new HashSet<PackageIdentity>
             {
                 packageNewtonsoftJson12
             });
 
-            net60Packages[packageNuGetFrameworks].ShouldBe(new HashSet<PackageIdentity>());
+            net60Section.Packages[packageNuGetFrameworks].ShouldBe(new HashSet<PackageIdentity>());
 
-            net60Packages[packageSystemReflectionMetadata].ShouldBe(new HashSet<PackageIdentity>());
+            net60Section.Packages[packageSystemReflectionMetadata].ShouldBe(new HashSet<PackageIdentity>());
         }
     }
 }

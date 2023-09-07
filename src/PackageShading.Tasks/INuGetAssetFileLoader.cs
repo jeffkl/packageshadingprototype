@@ -12,6 +12,6 @@ namespace PackageShading.Tasks
         /// </summary>
         /// <param name="projectAssetsFile">The full path to the NuGet assests file to load.</param>
         /// <returns>An <see cref="Dictionary{TKey, TValue}" /> containing target frameworks and a list of packages with their dependencies.</returns>
-        Dictionary<string, Dictionary<PackageIdentity, HashSet<PackageIdentity>>> LoadAssetsFile(string projectAssetsFile);
+        NuGetAssetsFile LoadAssetsFile(string projectDirectory, string projectAssetsFile);
     }
 }
