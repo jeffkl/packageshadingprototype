@@ -407,6 +407,11 @@ namespace PackageShading.Tasks
                 }
             }
 
+            if (ProjectReferences == null)
+            {
+                return packagesToShade;
+            }
+
             foreach (ITaskItem packageReference in ProjectReferences)
             {
                 string shadeDependencies = packageReference.GetMetadata(ItemMetadataNames.ShadeDependencies);
