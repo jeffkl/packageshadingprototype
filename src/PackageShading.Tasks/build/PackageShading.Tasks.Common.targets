@@ -45,9 +45,11 @@
       <_ResolvedProjectReferencePaths Include="@(_ProjectReferencesToAdd)" />
       
       <TfmSpecificPackageFile Include="@(_AssembliesToShade)"
+                              Condition="'$(IncludeShadedAssembliesInPackage)' == 'true'"
+                              BuildAction="None"
                               Pack="true"
-                              PackagePath="contentFiles\any\$(TargetFramework)\%(DestinationSubDirectory)"
-                              Condition="'$(IncludeShadedAssembliesInPackage)' == 'true'" />
+                              PackageCopyToOutput="true"
+                              PackagePath="contentFiles\any\$(TargetFramework)\%(DestinationSubDirectory)" />
     </ItemGroup>
   </Target>
 
